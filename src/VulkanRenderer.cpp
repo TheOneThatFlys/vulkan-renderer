@@ -95,6 +95,7 @@ void VulkanRenderer::run() {
 	initWindow();
 	initVulkan();
 	m_camera = std::make_unique<CameraController>(m_window);
+	m_debugWindow = std::make_unique<DebugWindow>(m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue, m_renderPass);
 	InputManager::create(m_window);
 	mainLoop();
 	cleanup();
@@ -692,6 +693,9 @@ void VulkanRenderer::recordCommandBuffer(const vk::raii::CommandBuffer& commandB
 	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, *m_descriptorSets[m_currentFrame], nullptr);
 
 	commandBuffer.drawIndexed(static_cast<u32>(indices.size()), 1, 0, 0, 0);
+
+	m_debugWindow->draw(commandBuffer);
+
 	commandBuffer.endRenderPass();
 	commandBuffer.end();
 }

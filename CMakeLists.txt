@@ -9,7 +9,8 @@ project ("VulkanRenderer")
 
 find_package(glfw3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
-find_package (Vulkan REQUIRED)
+find_package(imgui CONFIG REQUIRED)
+find_package(Vulkan REQUIRED)
 
 # set up Vulkan C++ module
 add_library(VulkanCppModule)
@@ -49,11 +50,14 @@ add_executable (VulkanRenderer
         src/InputManager.cpp
         src/InputManager.h
         src/Common.h
+        src/DebugWindow.cpp
+        src/DebugWindow.h
 )
 
 target_link_libraries(VulkanRenderer PRIVATE glfw)
 target_link_libraries(VulkanRenderer PRIVATE glm::glm)
-target_link_libraries (VulkanRenderer PRIVATE Vulkan::cppm)
+target_link_libraries(VulkanRenderer PRIVATE imgui::imgui)
+target_link_libraries(VulkanRenderer PRIVATE Vulkan::cppm)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET VulkanRenderer PROPERTY CXX_STANDARD 20)

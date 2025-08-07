@@ -5,11 +5,7 @@
 #include <optional>
 #include <array>
 
-#ifdef __INTELLISENSE__
-#include <vulkan/vulkan_raii.hpp>
-#else
 import vulkan_hpp;
-#endif
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -18,6 +14,7 @@ import vulkan_hpp;
 
 #include "Common.h"
 #include "CameraController.h"
+#include "DebugWindow.h"
 
 constexpr uint32_t WINDOW_WIDTH = 1280;
 constexpr uint32_t WINDOW_HEIGHT = 720;
@@ -118,6 +115,7 @@ private:
 	GLFWwindow* m_window = nullptr;
 
 	std::unique_ptr<CameraController> m_camera;
+	std::unique_ptr<DebugWindow> m_debugWindow;
 
 	vk::raii::Context m_context;
 	vk::raii::Instance m_instance = nullptr;
