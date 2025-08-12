@@ -9,6 +9,8 @@ public:
     void update(float deltaTime);
     glm::mat4 getViewMatrix() const;
     glm::mat4 getProjectionMatrix() const;
+
+    bool isCapturingMouse() const { return m_capturingMouse; }
 private:
     void updateVectors();
 

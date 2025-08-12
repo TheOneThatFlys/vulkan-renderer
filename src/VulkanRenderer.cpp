@@ -12,6 +12,7 @@
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 #include "InputManager.h"
+#include "DebugWindow.h"
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
@@ -64,47 +65,41 @@ static std::vector<char> readFile(const std::string& filename) {
 	return buffer;
 }
 
-vk::VertexInputBindingDescription Vertex::getBindingDescription() {
-	return {
-		.binding = 0,
-		.stride = sizeof(Vertex),
-		.inputRate = vk::VertexInputRate::eVertex
-	};
-}
-
-std::array<vk::VertexInputAttributeDescription, 2> Vertex::getAttributeDescriptions() {
-	std::array<vk::VertexInputAttributeDescription, 2> descriptions;
-	// position
-	descriptions[0] = {
-		.location = 0,
-		.binding = 0,
-		.format = vk::Format::eR32G32B32Sfloat,
-		.offset = offsetof(Vertex, pos)
-	};
-	// color
-	descriptions[1] = {
-		.location = 1,
-		.binding = 0,
-		.format = vk::Format::eR32G32B32Sfloat,
-		.offset = offsetof(Vertex, color),
-	};
-	return descriptions;
-}
-
 void VulkanRenderer::run() {
 	initWindow();
 	initVulkan();
 	m_camera = std::make_unique<CameraController>(m_window);
-	m_debugWindow = std::make_unique<DebugWindow>(m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue, m_renderPass);
+	m_debugWindow = std::make_unique<DebugWindow>(this, m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue, m_renderPass);
 	InputManager::create(m_window);
 	mainLoop();
 	cleanup();
+}
+
+CameraController* VulkanRenderer::getCamera() const {
+	return m_camera.get();
+}
+
+DebugWindow* VulkanRenderer::getDebugWindow() const {
+	return m_debugWindow.get();
+}
+
+FrameTimeInfo VulkanRenderer::getFrameTimeInfo() const {
+	auto [result, data] = m_queryPool.getResults<u64>(0, 2, 2 * sizeof(u64), sizeof(u64), vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait);
+	float nsPerTick = m_physicalDevice.getProperties().limits.timestampPeriod;
+	return {
+		.frameTime = m_deltaTime * 1000, // glfwGetTime returns seconds, so *1000 to convert to millis
+		.gpuTime = (data[1] - data[0]) * nsPerTick / 1000000, // gpu time is measured in nanoseconds, so divide by 1,000,000 to get millis
+	};
 }
 
 void VulkanRenderer::initWindow() {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	// center the window on the primary monitor
+	const GLFWvidmode* videoMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+	glfwWindowHint(GLFW_POSITION_X, (videoMode->width - static_cast<i32>(WINDOW_WIDTH)) / 2);
+	glfwWindowHint(GLFW_POSITION_Y, (videoMode->height - static_cast<i32>(WINDOW_HEIGHT)) / 2);
 	m_window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Vulkan Renderer", nullptr, nullptr);
 }
 
@@ -123,6 +118,7 @@ void VulkanRenderer::initVulkan() {
 	createFramebuffers();
 	createCommandPool();
 	createCommandBuffers();
+	createQueryPool();
 	createVertexBuffer();
 	createIndexBuffer();
 	createUniformBuffers();
@@ -204,7 +200,7 @@ void VulkanRenderer::createSurface() {
 void VulkanRenderer::createImageViews() {
 	vk::ImageViewCreateInfo createInfo{
 		.viewType = vk::ImageViewType::e2D,
-		.format = vk::Format::eB8G8R8A8Srgb,
+		.format = vk::Format::eB8G8R8A8Unorm,
 
 		.components{
 			.r = vk::ComponentSwizzle::eIdentity,
@@ -245,8 +241,8 @@ void VulkanRenderer::createFramebuffers() {
 }
 
 void VulkanRenderer::createRenderPass() {
-	vk::AttachmentDescription colorAttachment{
-		.format = vk::Format::eB8G8R8A8Srgb,
+	vk::AttachmentDescription colorAttachment = {
+		.format = vk::Format::eB8G8R8A8Unorm,
 		.samples = vk::SampleCountFlagBits::e1,
 		.loadOp = vk::AttachmentLoadOp::eClear,
 		.storeOp = vk::AttachmentStoreOp::eStore,
@@ -255,16 +251,16 @@ void VulkanRenderer::createRenderPass() {
 		.initialLayout = vk::ImageLayout::eUndefined,
 		.finalLayout = vk::ImageLayout::ePresentSrcKHR,
 	};
-	vk::AttachmentReference colorAttachmentRef{
+	vk::AttachmentReference colorAttachmentRef = {
 		.attachment = 0,
 		.layout = vk::ImageLayout::eColorAttachmentOptimal
 	};
-	vk::SubpassDescription subpass{
+	vk::SubpassDescription subpass = {
 		.pipelineBindPoint = vk::PipelineBindPoint::eGraphics,
 		.colorAttachmentCount = 1,
 		.pColorAttachments = &colorAttachmentRef
 	};
-	vk::SubpassDependency dependency{
+	vk::SubpassDependency dependency = {
 		.srcSubpass = vk::SubpassExternal,
 		.dstSubpass = 0,
 		.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput,
@@ -272,7 +268,7 @@ void VulkanRenderer::createRenderPass() {
 		.srcAccessMask = vk::AccessFlagBits::eNone,
 		.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite,
 	};
-	vk::RenderPassCreateInfo renderPassInfo{
+	vk::RenderPassCreateInfo renderPassInfo = {
 		.attachmentCount = 1,
 		.pAttachments = &colorAttachment,
 		.subpassCount = 1,
@@ -292,17 +288,17 @@ void VulkanRenderer::createSwapChain() {
 		imageCount = capabilities.maxImageCount;
 	}
 
-	vk::SwapchainCreateInfoKHR createInfo{
+	vk::SwapchainCreateInfoKHR createInfo = {
 		.surface = m_surface,
 		.minImageCount = imageCount,
-		.imageFormat = vk::Format::eB8G8R8A8Srgb,
+		.imageFormat = vk::Format::eB8G8R8A8Unorm,
 		.imageColorSpace = vk::ColorSpaceKHR::eSrgbNonlinear,
 		.imageExtent = m_swapExtent,
 		.imageArrayLayers = 1,
 		.imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
 		.preTransform = capabilities.currentTransform,
 		.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
-		.presentMode = vk::PresentModeKHR::eMailbox,
+		.presentMode = vk::PresentModeKHR::eFifo,
 		.clipped = vk::True,
 		.oldSwapchain = nullptr,
 	};
@@ -443,6 +439,21 @@ void VulkanRenderer::createSyncObjects() {
 	}
 }
 
+void VulkanRenderer::createQueryPool() {
+	// check for device support
+	vk::PhysicalDeviceLimits limits = m_physicalDevice.getProperties().limits;
+	if (limits.timestampPeriod == 0 || !limits.timestampComputeAndGraphics) {
+		throw std::runtime_error("Current GPU does not support timestamping");
+	}
+
+	vk::QueryPoolCreateInfo createInfo = {
+		.queryType = vk::QueryType::eTimestamp,
+		.queryCount = 2,
+	};
+
+	m_queryPool = vk::raii::QueryPool(m_device, createInfo);
+}
+
 void VulkanRenderer::createVertexBuffer() {
 	const u64 bufferSize = sizeof(Vertex) * vertices.size();
 
@@ -488,13 +499,13 @@ void VulkanRenderer::createIndexBuffer() {
 }
 
 void VulkanRenderer::createDescriptorSetLayout() {
-	vk::DescriptorSetLayoutBinding layoutBinding{
+	vk::DescriptorSetLayoutBinding layoutBinding = {
 		.binding = 0,
 		.descriptorType = vk::DescriptorType::eUniformBuffer,
 		.descriptorCount = 1,
 		.stageFlags = vk::ShaderStageFlagBits::eVertex
 	};
-	vk::DescriptorSetLayoutCreateInfo layoutInfo{
+	vk::DescriptorSetLayoutCreateInfo layoutInfo = {
 		.bindingCount = 1,
 		.pBindings = &layoutBinding
 	};
@@ -659,8 +670,10 @@ vk::Extent2D VulkanRenderer::chooseExtent(const vk::SurfaceCapabilitiesKHR& capa
 void VulkanRenderer::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, const u32 imageIndex) const {
 	vk::CommandBufferBeginInfo beginInfo;
 	commandBuffer.begin(beginInfo);
+	commandBuffer.resetQueryPool(m_queryPool, 0, 2);
+	commandBuffer.writeTimestamp(vk::PipelineStageFlagBits::eTopOfPipe, m_queryPool, 0);
 	vk::ClearValue clearColor = { {0.0f, 0.0f, 0.0f, 1.0f} };
-	vk::RenderPassBeginInfo renderPassInfo{
+	vk::RenderPassBeginInfo renderPassInfo = {
 		.renderPass = m_renderPass,
 		.framebuffer = m_framebuffers[imageIndex],
 		.renderArea{
@@ -672,7 +685,7 @@ void VulkanRenderer::recordCommandBuffer(const vk::raii::CommandBuffer& commandB
 	};
 	commandBuffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
 	commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
-	vk::Viewport viewport{
+	vk::Viewport viewport = {
 		.x = 0.0f,
 		.y = 0.0f,
 		.width = static_cast<float>(m_swapExtent.width),
@@ -680,7 +693,7 @@ void VulkanRenderer::recordCommandBuffer(const vk::raii::CommandBuffer& commandB
 		.minDepth = 0.0f,
 		.maxDepth = 1.0f
 	};
-	vk::Rect2D scissor{
+	vk::Rect2D scissor = {
 		.offset = {0, 0},
 		.extent = m_swapExtent
 	};
@@ -697,6 +710,9 @@ void VulkanRenderer::recordCommandBuffer(const vk::raii::CommandBuffer& commandB
 	m_debugWindow->draw(commandBuffer);
 
 	commandBuffer.endRenderPass();
+
+	commandBuffer.writeTimestamp(vk::PipelineStageFlagBits::eBottomOfPipe, m_queryPool, 1);
+
 	commandBuffer.end();
 }
 
@@ -760,39 +776,21 @@ u32 VulkanRenderer::findMemoryType(u32 typeFilter, vk::MemoryPropertyFlags prope
 
 void VulkanRenderer::mainLoop() {
 	float prevTime = static_cast<float>(glfwGetTime());
-	float deltaTime = 1.0f / 120;
-	float updateTime = 0;
-	size_t fpsPtr = 0;
-	float movingFps[64] = {};
 	while (!glfwWindowShouldClose(m_window)) {
 		InputManager::update();
 		glfwPollEvents();
 		drawFrame();
 		const float nowTime = static_cast<float>(glfwGetTime());
-		deltaTime = nowTime - prevTime;
-		m_camera->update(deltaTime);
+		m_deltaTime = nowTime - prevTime;
+		m_camera->update(m_deltaTime);
 		prevTime = nowTime;
-
-		updateTime += deltaTime;
-
-		movingFps[fpsPtr] = 1.0f / deltaTime;
-		fpsPtr = (fpsPtr + 1) % 64;
-		float avgFps = 0;
-		for (float fps : movingFps) {
-			avgFps += fps;
-		}
-		avgFps /= 64;
-		if (updateTime > 0.2f) {
-			glfwSetWindowTitle(m_window, std::string("Vulkan Renderer | FPS ").append(std::to_string(static_cast<int>(avgFps))).c_str());
-			updateTime = 0.0f;
-		}
 	}
 	m_device.waitIdle();
 }
 
 void VulkanRenderer::drawFrame() {
 	// m_graphicsQueue.waitIdle();
-	// wait indefinitely for fence
+	// wait indefinitely
 	while (m_device.waitForFences(*m_inFlightFences[m_currentFrame], vk::True, std::numeric_limits<u64>::max()) == vk::Result::eTimeout) {}
 	m_device.resetFences(*m_inFlightFences[m_currentFrame]);
 	updateUniformBuffer(m_currentFrame);

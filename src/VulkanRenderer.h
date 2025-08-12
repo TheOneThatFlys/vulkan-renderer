@@ -1,11 +1,11 @@
 ﻿#pragma once
 
-#include <iostream>
 #include <vector>
 #include <optional>
 #include <array>
 
-import vulkan_hpp;
+#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_raii.hpp>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -14,7 +14,6 @@ import vulkan_hpp;
 
 #include "Common.h"
 #include "CameraController.h"
-#include "DebugWindow.h"
 
 constexpr uint32_t WINDOW_WIDTH = 1280;
 constexpr uint32_t WINDOW_HEIGHT = 720;
@@ -33,11 +32,12 @@ const std::vector deviceExtensions = {
 
 #ifdef NDEBUG
 constexpr bool ENABLE_VALIDATION_LAYERS = false;
-#define LOG_INFO(s)
 #else
 constexpr bool ENABLE_VALIDATION_LAYERS = true;
-#define LOG_INFO(s) std::cout << "[INFO] " << s << std::endl
 #endif
+
+// Forward decl.
+class DebugWindow;
 
 struct QueueFamilyIndices {
 	std::optional<u32> graphicsFamily;
@@ -52,9 +52,32 @@ struct Vertex {
 	glm::vec3 pos;
 	glm::vec3 color;
 
-	static vk::VertexInputBindingDescription getBindingDescription();
+	static vk::VertexInputBindingDescription getBindingDescription() {
+		return {
+			.binding = 0,
+			.stride = sizeof(Vertex),
+			.inputRate = vk::VertexInputRate::eVertex
+		};
+	}
 
-	static std::array<vk::VertexInputAttributeDescription, 2> getAttributeDescriptions();
+	static std::array<vk::VertexInputAttributeDescription, 2> getAttributeDescriptions() {
+		std::array<vk::VertexInputAttributeDescription, 2> descriptions;
+		// position
+		descriptions[0] = {
+			.location = 0,
+			.binding = 0,
+			.format = vk::Format::eR32G32B32A32Sfloat,
+			.offset = offsetof(Vertex, pos)
+		};
+		// color
+		descriptions[1] = {
+			.location = 1,
+			.binding = 0,
+			.format = vk::Format::eR32G32B32Sfloat,
+			.offset = offsetof(Vertex, color),
+		};
+		return descriptions;
+	}
 };
 
 struct MatrixUniforms {
@@ -66,7 +89,9 @@ struct MatrixUniforms {
 class VulkanRenderer {
 public:
 	void run();
-
+	CameraController* getCamera() const;
+	DebugWindow* getDebugWindow() const;
+	FrameTimeInfo getFrameTimeInfo() const;
 
 private:
 	void initWindow();
@@ -83,12 +108,14 @@ private:
 	void createCommandPool();
 	void createCommandBuffers();
 	void createSyncObjects();
+	void createQueryPool();
 	void createVertexBuffer();
 	void createIndexBuffer();
 	void createDescriptorSetLayout();
 	void createUniformBuffers();
 	void createDescriptorPool();
 	void createDescriptorSets();
+
 	vk::raii::ShaderModule createShaderModule(const std::vector<char>& code) const;
 
 	static bool checkValidationLayerSupport();
@@ -111,11 +138,11 @@ private:
 
 	void cleanup() const;
 
+	float m_deltaTime = 1.0f / 120.0f;
 
 	GLFWwindow* m_window = nullptr;
 
 	std::unique_ptr<CameraController> m_camera;
-	std::unique_ptr<DebugWindow> m_debugWindow;
 
 	vk::raii::Context m_context;
 	vk::raii::Instance m_instance = nullptr;
@@ -137,7 +164,7 @@ private:
 	vk::raii::PipelineLayout m_pipelineLayout = nullptr;
 	vk::raii::Pipeline m_pipeline = nullptr;
 	vk::raii::RenderPass m_renderPass = nullptr;
-	
+
 	vk::raii::CommandPool m_commandPool = nullptr;
 	std::vector<vk::raii::CommandBuffer> m_commandBuffers;
 
@@ -145,6 +172,8 @@ private:
 	std::vector<vk::raii::Semaphore> m_renderFinishedSemaphores;
 	std::vector<vk::raii::Fence> m_inFlightFences;
 	u32 m_currentFrame = 0;
+
+	vk::raii::QueryPool m_queryPool = nullptr;
 
 	vk::raii::Buffer m_vertexBuffer = nullptr;
 	vk::raii::DeviceMemory m_vertexBufferMemory = nullptr;
@@ -157,5 +186,7 @@ private:
 
 	vk::raii::DescriptorPool m_descriptorPool = nullptr;
 	std::vector<vk::raii::DescriptorSet> m_descriptorSets;
+
+	std::unique_ptr<DebugWindow> m_debugWindow;
 };
-	
+

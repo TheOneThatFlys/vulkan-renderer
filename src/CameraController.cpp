@@ -1,7 +1,7 @@
 #include "CameraController.h"
 
-#include <iostream>
 #include <glm/gtc/matrix_transform.hpp>
+#include <imgui.h>
 
 #include "InputManager.h"
 
@@ -49,8 +49,10 @@ void CameraController::update(float deltaTime) {
         m_capturingMouse = !m_capturingMouse;
         if (m_capturingMouse) {
             glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
         } else {
             glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
         }
     }
 
