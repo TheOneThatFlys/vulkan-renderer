@@ -85,7 +85,7 @@ DebugWindow* VulkanRenderer::getDebugWindow() const {
 
 FrameTimeInfo VulkanRenderer::getFrameTimeInfo() const {
 	auto [result, data] = m_queryPool.getResults<u64>(0, 2, 2 * sizeof(u64), sizeof(u64), vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait);
-	float nsPerTick = m_physicalDevice.getProperties().limits.timestampPeriod;
+	const float nsPerTick = m_physicalDevice.getProperties().limits.timestampPeriod;
 	return {
 		.frameTime = m_deltaTime * 1000, // glfwGetTime returns seconds, so *1000 to convert to millis
 		.gpuTime = (data[1] - data[0]) * nsPerTick / 1000000, // gpu time is measured in nanoseconds, so divide by 1,000,000 to get millis

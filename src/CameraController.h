@@ -11,6 +11,8 @@ public:
     glm::mat4 getProjectionMatrix() const;
 
     bool isCapturingMouse() const { return m_capturingMouse; }
+    glm::vec3 getPosition() const { return m_position; }
+    void setPosition(const glm::vec3 pos) { m_position = pos; }
 private:
     void updateVectors();
 

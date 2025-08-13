@@ -1,9 +1,10 @@
 #include "DebugWindow.h"
 
+
+#include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
-#include <iomanip>
 
 #include "VulkanRenderer.h"
 
@@ -60,13 +61,6 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
     ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
 
     if (ImGui::BeginTabBar("navbar")) {
-        if (ImGui::BeginTabItem("Main")) {
-            if (ImGui::TreeNode("Camera")) {
-
-                ImGui::TreePop();
-            }
-            ImGui::EndTabItem();
-        }
         if (ImGui::BeginTabItem("Performance")) {
             FrameTimeInfo avgTimes = { 1, 1 };
             std::string frameTimeText, drawTimeText = "Loading...";
@@ -86,6 +80,20 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
 
             ImGui::EndTabItem();
         }
+
+        if (ImGui::BeginTabItem("Scene")) {
+            if (ImGui::TreeNode("Camera")) {
+                CameraController* camera = m_vulkanRenderer->getCamera();
+                glm::vec3 pos = camera->getPosition();
+                float values[] = { pos.x, pos.y, pos.z };
+                if (ImGui::DragFloat3("Position", values, 0.1))
+                    camera->setPosition(glm::vec3(values[0], values[1], values[2]));
+
+                ImGui::TreePop();
+            }
+            ImGui::EndTabItem();
+        }
+
         ImGui::EndTabBar();
     }
     ImGui::End();
