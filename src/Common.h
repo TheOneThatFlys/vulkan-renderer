@@ -1,7 +1,8 @@
 #pragma once
 
 #include <vector>
-#include <iostream>
+
+#include "Logger.h"
 
 using u8 = std::uint8_t;
 using u16 = std::uint16_t;
@@ -10,13 +11,21 @@ using u64 = std::uint64_t;
 
 using i32 = std::int32_t;
 
-#define LOG_INFO(s) std::cout << "[INFO] " << s << std::endl
-
 struct FrameTimeInfo {
     // time between each frame in milliseconds
     double frameTime = 0;
     // time for each frame to be drawn in milliseconds
     double gpuTime = 0;
+};
+
+struct VRAMUsageInfo {
+    size_t gpuTotal = 0;
+    size_t gpuAvailable = 0;
+    size_t gpuUsed = 0;
+
+    size_t sharedTotal = 0;
+    size_t sharedAvailable = 0;
+    size_t sharedUsed = 0;
 };
 
 inline std::string listify(std::vector<const char*> vs) {

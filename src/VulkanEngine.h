@@ -20,14 +20,17 @@ constexpr uint32_t WINDOW_HEIGHT = 720;
 
 constexpr u32 MAX_FRAMES_IN_FLIGHT = 2;
 
-const std::vector validationLayers = {
+constexpr std::array validationLayers = {
 	"VK_LAYER_KHRONOS_validation"
 };
 
-const std::vector deviceExtensions = {
+constexpr std::array<const char*, 0> instanceExtensions = {
+	// vk::KHRGetMemoryRequirements2ExtensionName
+};
+
+constexpr std::array deviceExtensions = {
 	vk::KHRSwapchainExtensionName,
-	vk::KHRSpirv14ExtensionName,
-	vk::KHRShaderDrawParametersExtensionName,
+	vk::EXTMemoryBudgetExtensionName,
 };
 
 #ifdef NDEBUG
@@ -50,7 +53,7 @@ struct QueueFamilyIndices {
 
 struct Vertex {
 	glm::vec3 pos;
-	glm::vec3 color;
+	glm::vec2 uv;
 
 	static vk::VertexInputBindingDescription getBindingDescription() {
 		return {
@@ -73,8 +76,8 @@ struct Vertex {
 		descriptions[1] = {
 			.location = 1,
 			.binding = 0,
-			.format = vk::Format::eR32G32B32Sfloat,
-			.offset = offsetof(Vertex, color),
+			.format = vk::Format::eR32G32Sfloat,
+			.offset = offsetof(Vertex, uv),
 		};
 		return descriptions;
 	}
@@ -86,12 +89,13 @@ struct MatrixUniforms {
 	glm::mat4 projection;
 };
 
-class VulkanRenderer {
+class VulkanEngine {
 public:
 	void run();
 	CameraController* getCamera() const;
 	DebugWindow* getDebugWindow() const;
 	FrameTimeInfo getFrameTimeInfo() const;
+	VRAMUsageInfo getVramUsage() const;
 
 private:
 	void initWindow();
@@ -115,6 +119,8 @@ private:
 	void createUniformBuffers();
 	void createDescriptorPool();
 	void createDescriptorSets();
+	void createTextureImageView();
+	void createTextureSampler();
 
 	vk::raii::ShaderModule createShaderModule(const std::vector<char>& code) const;
 
@@ -127,9 +133,16 @@ private:
 
 	vk::Extent2D chooseExtent(const vk::SurfaceCapabilitiesKHR& capabilities) const;
 
+	void createTextureImage(const char* path);
 	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
+	std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties) const;
 	void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const;
+	void transitionImageLayout(vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
+	void copyBufferToImage(vk::raii::Buffer& buffer, vk::raii::Image& image, u32 width, u32 height) const;
 	u32 findMemoryType(u32 typeFilter, vk::MemoryPropertyFlags properties) const;
+
+	vk::raii::CommandBuffer beginSingleCommand() const;
+	void endSingleCommand(const vk::raii::CommandBuffer& commandBuffer) const;
 
 	void mainLoop();
 	void recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, u32 imageIndex) const;
@@ -186,6 +199,11 @@ private:
 
 	vk::raii::DescriptorPool m_descriptorPool = nullptr;
 	std::vector<vk::raii::DescriptorSet> m_descriptorSets;
+
+	vk::raii::Image m_textureImage = nullptr;
+	vk::raii::DeviceMemory m_textureImageMemory = nullptr;
+	vk::raii::ImageView m_textureImageView = nullptr;
+	vk::raii::Sampler m_textureSampler = nullptr;
 
 	std::unique_ptr<DebugWindow> m_debugWindow;
 };

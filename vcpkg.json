@@ -4,7 +4,11 @@
     "glm",
     {
       "name": "imgui",
-      "features": ["glfw-binding", "vulkan-binding"]
-    }
+      "features": [
+        "glfw-binding",
+        "vulkan-binding"
+      ]
+    },
+    "stb"
   ]
 }

@@ -11,6 +11,7 @@ find_package(glfw3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
+find_package(Stb REQUIRED)
 
 # set up Vulkan C++ module
 add_library(VulkanCppModule)
@@ -40,11 +41,10 @@ target_sources(VulkanCppModule
         "${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm"
 )
 
-
 # Add source to this project's executable.
 add_executable (VulkanRenderer
-        src/VulkanRenderer.cpp
-        src/VulkanRenderer.h
+        src/VulkanEngine.cpp
+        src/VulkanEngine.h
         src/CameraController.cpp
         src/CameraController.h
         src/InputManager.cpp
@@ -52,12 +52,18 @@ add_executable (VulkanRenderer
         src/Common.h
         src/DebugWindow.cpp
         src/DebugWindow.h
+        src/AssetManager.cpp
+        src/AssetManager.h
+        src/Logger.cpp
+        src/Logger.h
 )
 
 target_link_libraries(VulkanRenderer PRIVATE glfw)
 target_link_libraries(VulkanRenderer PRIVATE glm::glm)
 target_link_libraries(VulkanRenderer PRIVATE imgui::imgui)
 target_link_libraries(VulkanRenderer PRIVATE Vulkan::cppm)
+
+target_include_directories(VulkanRenderer PRIVATE ${Stb_INCLUDE_DIR})
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET VulkanRenderer PROPERTY CXX_STANDARD 20)
@@ -91,3 +97,7 @@ endfunction()
 file(GLOB SHADER_SOURCES "${CMAKE_CURRENT_LIST_DIR}/src/shaders/*")
 add_shaders(Shaders ${SHADER_SOURCES})
 add_dependencies(VulkanRenderer Shaders)
+
+# Copy assets folder
+add_custom_target(Assets COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/assets ${CMAKE_CURRENT_BINARY_DIR}/assets)
+add_dependencies(VulkanRenderer Assets)

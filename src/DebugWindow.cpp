@@ -5,13 +5,14 @@
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
+#include <ranges>
 
-#include "VulkanRenderer.h"
+#include "VulkanEngine.h"
 
-DebugWindow::DebugWindow(VulkanRenderer* vulkanRenderer, GLFWwindow *window, const vk::raii::Instance& instance, const vk::raii::PhysicalDevice& physicalDevice,
-    const vk::raii::Device& device, const vk::raii::Queue& queue, const vk::raii::RenderPass& renderPass) {
+DebugWindow::DebugWindow(VulkanEngine* engine, GLFWwindow *window, const vk::raii::Instance& instance, const vk::raii::PhysicalDevice& physicalDevice,
+                         const vk::raii::Device& device, const vk::raii::Queue& queue, const vk::raii::RenderPass& renderPass) {
 
-    m_vulkanRenderer = vulkanRenderer;
+    m_engine = engine;
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -33,6 +34,8 @@ DebugWindow::DebugWindow(VulkanRenderer* vulkanRenderer, GLFWwindow *window, con
     };
 
     ImGui_ImplVulkan_Init(&initInfo);
+
+    createUpdateCallbacks();
 }
 
 DebugWindow::~DebugWindow() {
@@ -41,8 +44,11 @@ DebugWindow::~DebugWindow() {
 }
 
 void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
-    if (!m_firstFrame) {
-        m_firstFrame = true;
+    if (m_firstFrame) {
+        m_firstFrame = false;
+        for (const auto &func: m_updateCallbacks | std::views::keys) {
+            func(this);
+        }
         return;
     }
 
@@ -51,7 +57,7 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    m_frameTimes[m_framePointer++] = m_vulkanRenderer->getFrameTimeInfo();
+    m_frameTimes[m_framePointer++] = m_engine->getFrameTimeInfo();
     if (m_framePointer == FRAME_AVERAGE_COUNT) {
         m_framePointer = 0;
         if (!m_framesFilled) m_framesFilled = true;
@@ -62,6 +68,7 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
 
     if (ImGui::BeginTabBar("navbar")) {
         if (ImGui::BeginTabItem("Performance")) {
+            // frame times
             FrameTimeInfo avgTimes = { 1, 1 };
             std::string frameTimeText, drawTimeText = "Loading...";
             if (m_framesFilled) {
@@ -78,15 +85,23 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
             ImGui::Text(std::format("Frame time: {:.3f} ms", avgTimes.frameTime).c_str());
             ImGui::Text(std::format("Draw time:  {:.3f} ms", avgTimes.gpuTime).c_str());
 
+            ImGui::Separator();
+            // memory usage
+            ImGui::Text("VRAM Usage");
+            float usedGB = static_cast<float>(m_vramUsage.gpuUsed) / 1000000000.0f;
+            float totalGB = static_cast<float>(m_vramUsage.gpuAvailable) / 1000000000.0f;
+
+            ImGui::ProgressBar(usedGB / totalGB, ImVec2(0.0f, 0.0f), std::format("{:.2f}/{:.2f} GB", usedGB, totalGB).c_str());
+
             ImGui::EndTabItem();
         }
 
         if (ImGui::BeginTabItem("Scene")) {
             if (ImGui::TreeNode("Camera")) {
-                CameraController* camera = m_vulkanRenderer->getCamera();
+                CameraController* camera = m_engine->getCamera();
                 glm::vec3 pos = camera->getPosition();
                 float values[] = { pos.x, pos.y, pos.z };
-                if (ImGui::DragFloat3("Position", values, 0.1))
+                if (ImGui::DragFloat3("Position", values, 0.1f))
                     camera->setPosition(glm::vec3(values[0], values[1], values[2]));
 
                 ImGui::TreePop();
@@ -103,4 +118,23 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
     ImDrawData* drawData = ImGui::GetDrawData();
     ImGui_ImplVulkan_RenderDrawData(drawData, *commandBuffer);
 
+    // update callbacks
+    for (auto& [func, time] : m_updateCallbacks) {
+        m_callbackLives[func] -= 1;
+        if (m_callbackLives[func] == 0) {
+            m_callbackLives[func] = time;
+            func(this);
+        }
+    }
+}
+
+void DebugWindow::setTimedUpdate(UpdateCallback func, int nFrames) {
+    m_updateCallbacks[func] = nFrames;
+    m_callbackLives[func] = nFrames;
+}
+
+void DebugWindow::createUpdateCallbacks() {
+    setTimedUpdate([](DebugWindow* window) -> void {
+        window->m_vramUsage = window->m_engine->getVramUsage();
+    }, 60);
 }
