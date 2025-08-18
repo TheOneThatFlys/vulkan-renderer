@@ -4,7 +4,7 @@
 
 Logger Logger::s_instance = Logger();
 
-Logger Logger::get() {
+Logger& Logger::get() {
     return s_instance;
 }
 
@@ -14,6 +14,10 @@ void Logger::info(std::string s) {
 
 void Logger::warn(std::string s) {
     raw("[WARN] " + s);
+}
+
+void Logger::error(std::string s) {
+    throw std::runtime_error("[ERROR] " + s);
 }
 
 void Logger::raw(const std::string& s) {

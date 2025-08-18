@@ -9,7 +9,7 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 
 #include "Common.h"
@@ -25,7 +25,7 @@ constexpr std::array validationLayers = {
 };
 
 constexpr std::array<const char*, 0> instanceExtensions = {
-	// vk::KHRGetMemoryRequirements2ExtensionName
+
 };
 
 constexpr std::array deviceExtensions = {
@@ -41,6 +41,7 @@ constexpr bool ENABLE_VALIDATION_LAYERS = true;
 
 // Forward decl.
 class DebugWindow;
+class AssetManager;
 
 struct QueueFamilyIndices {
 	std::optional<u32> graphicsFamily;
@@ -48,38 +49,6 @@ struct QueueFamilyIndices {
 
 	bool isComplete() const {
 		return graphicsFamily.has_value() && presentFamily.has_value();
-	}
-};
-
-struct Vertex {
-	glm::vec3 pos;
-	glm::vec2 uv;
-
-	static vk::VertexInputBindingDescription getBindingDescription() {
-		return {
-			.binding = 0,
-			.stride = sizeof(Vertex),
-			.inputRate = vk::VertexInputRate::eVertex
-		};
-	}
-
-	static std::array<vk::VertexInputAttributeDescription, 2> getAttributeDescriptions() {
-		std::array<vk::VertexInputAttributeDescription, 2> descriptions;
-		// position
-		descriptions[0] = {
-			.location = 0,
-			.binding = 0,
-			.format = vk::Format::eR32G32B32A32Sfloat,
-			.offset = offsetof(Vertex, pos)
-		};
-		// color
-		descriptions[1] = {
-			.location = 1,
-			.binding = 0,
-			.format = vk::Format::eR32G32Sfloat,
-			.offset = offsetof(Vertex, uv),
-		};
-		return descriptions;
 	}
 };
 
@@ -97,6 +66,13 @@ public:
 	FrameTimeInfo getFrameTimeInfo() const;
 	VRAMUsageInfo getVramUsage() const;
 
+	vk::raii::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags) const;
+	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
+	std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties) const;
+	void transitionImageLayout(vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
+	void copyBufferToImage(vk::raii::Buffer& buffer, vk::raii::Image& image, u32 width, u32 height) const;
+	void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const;
+
 private:
 	void initWindow();
 	void initVulkan();
@@ -113,14 +89,13 @@ private:
 	void createCommandBuffers();
 	void createSyncObjects();
 	void createQueryPool();
-	void createVertexBuffer();
-	void createIndexBuffer();
 	void createDescriptorSetLayout();
 	void createUniformBuffers();
 	void createDescriptorPool();
 	void createDescriptorSets();
 	void createTextureImageView();
 	void createTextureSampler();
+	void createDepthResources();
 
 	vk::raii::ShaderModule createShaderModule(const std::vector<char>& code) const;
 
@@ -134,11 +109,6 @@ private:
 	vk::Extent2D chooseExtent(const vk::SurfaceCapabilitiesKHR& capabilities) const;
 
 	void createTextureImage(const char* path);
-	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
-	std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties) const;
-	void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const;
-	void transitionImageLayout(vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
-	void copyBufferToImage(vk::raii::Buffer& buffer, vk::raii::Image& image, u32 width, u32 height) const;
 	u32 findMemoryType(u32 typeFilter, vk::MemoryPropertyFlags properties) const;
 
 	vk::raii::CommandBuffer beginSingleCommand() const;
@@ -155,7 +125,7 @@ private:
 
 	GLFWwindow* m_window = nullptr;
 
-	std::unique_ptr<CameraController> m_camera;
+	std::unique_ptr<CameraController> m_camera = nullptr;
 
 	vk::raii::Context m_context;
 	vk::raii::Instance m_instance = nullptr;
@@ -169,7 +139,7 @@ private:
 
 	vk::raii::SurfaceKHR m_surface = nullptr;
 	vk::raii::SwapchainKHR m_swapChain = nullptr;
-	std::vector<vk::raii::ImageView> m_imageViews;
+	std::vector<vk::raii::ImageView> m_swapImageViews;
 	std::vector<vk::raii::Framebuffer> m_framebuffers;
 	vk::Extent2D m_swapExtent;
 
@@ -188,11 +158,6 @@ private:
 
 	vk::raii::QueryPool m_queryPool = nullptr;
 
-	vk::raii::Buffer m_vertexBuffer = nullptr;
-	vk::raii::DeviceMemory m_vertexBufferMemory = nullptr;
-	vk::raii::Buffer m_indexBuffer = nullptr;
-	vk::raii::DeviceMemory m_indexBufferMemory = nullptr;
-
 	std::vector<vk::raii::Buffer> m_uniformBuffers;
 	std::vector<vk::raii::DeviceMemory> m_uniformBuffersMemory;
 	std::vector<void*> m_uniformBuffersMapped;
@@ -205,6 +170,11 @@ private:
 	vk::raii::ImageView m_textureImageView = nullptr;
 	vk::raii::Sampler m_textureSampler = nullptr;
 
+	vk::raii::Image m_depthImage = nullptr;
+	vk::raii::DeviceMemory m_depthImageMemory = nullptr;
+	vk::raii::ImageView m_depthImageView = nullptr;
+
+	std::unique_ptr<AssetManager> m_assetManager = nullptr;
 	std::unique_ptr<DebugWindow> m_debugWindow;
 };
 

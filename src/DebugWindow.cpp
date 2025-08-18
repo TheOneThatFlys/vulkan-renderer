@@ -88,10 +88,10 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
             ImGui::Separator();
             // memory usage
             ImGui::Text("VRAM Usage");
-            float usedGB = static_cast<float>(m_vramUsage.gpuUsed) / 1000000000.0f;
-            float totalGB = static_cast<float>(m_vramUsage.gpuAvailable) / 1000000000.0f;
-
-            ImGui::ProgressBar(usedGB / totalGB, ImVec2(0.0f, 0.0f), std::format("{:.2f}/{:.2f} GB", usedGB, totalGB).c_str());
+            size_t usedGB = m_vramUsage.gpuUsed;
+            size_t totalGB = m_vramUsage.gpuAvailable;
+            std::string progress = std::format("{} / {}", storageSizeToString(usedGB), storageSizeToString(totalGB));
+            ImGui::ProgressBar(static_cast<double>(usedGB) / totalGB, ImVec2(0.0f, 0.0f), progress.c_str());
 
             ImGui::EndTabItem();
         }

@@ -17,18 +17,9 @@
 
 #include "InputManager.h"
 #include "DebugWindow.h"
+#include "AssetManager.h"
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
-
-const std::vector<Vertex> vertices = {
-	{{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}},
-	{{0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}},
-	{{0.5f, 0.5f, 0.0f}, {1.0f, 1.0f}},
-	{{-0.5f, 0.5f, 0.0f}, {0.0f, 1.0f}}
-};
-const std::vector<u16> indices = {
-	0, 1, 2, 2, 3, 0
-};
 
 static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(
 	const vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -74,8 +65,9 @@ void VulkanEngine::run() {
 	initVulkan();
 	m_camera = std::make_unique<CameraController>(m_window);
 	m_debugWindow = std::make_unique<DebugWindow>(this, m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue, m_renderPass);
+	m_assetManager = std::make_unique<AssetManager>(this);
+	m_assetManager->load("assets");
 	InputManager::create(m_window);
-	getVramUsage();
 	mainLoop();
 	cleanup();
 }
@@ -143,13 +135,12 @@ void VulkanEngine::initVulkan() {
 	createRenderPass();
 	createDescriptorSetLayout();
 	createGraphicsPipeline();
-	createFramebuffers();
 	createCommandPool();
 	createCommandBuffers();
 	createQueryPool();
-	createVertexBuffer();
-	createIndexBuffer();
 	createUniformBuffers();
+	createDepthResources();
+	createFramebuffers();
 	createTextureImage("assets/monkey.jpg");
 	createTextureImageView();
 	createTextureSampler();
@@ -231,39 +222,18 @@ void VulkanEngine::createSurface() {
 }
 
 void VulkanEngine::createImageViews() {
-	vk::ImageViewCreateInfo createInfo{
-		.viewType = vk::ImageViewType::e2D,
-		.format = vk::Format::eB8G8R8A8Unorm,
-
-		.components{
-			.r = vk::ComponentSwizzle::eIdentity,
-			.g = vk::ComponentSwizzle::eIdentity,
-			.b = vk::ComponentSwizzle::eIdentity,
-			.a = vk::ComponentSwizzle::eIdentity,
-		},
-
-		.subresourceRange{
-			.aspectMask = vk::ImageAspectFlagBits::eColor,
-			.baseMipLevel = 0,
-			.levelCount = 1,
-			.baseArrayLayer = 0,
-			.layerCount = 1,
-		},
-	};
-
 	for (const auto& image : m_swapChain.getImages()) {
-		createInfo.image = image;
-		m_imageViews.emplace_back(m_device, createInfo);
+		m_swapImageViews.push_back(createImageView(image, vk::Format::eB8G8R8A8Unorm, vk::ImageAspectFlagBits::eColor));
 	}
 }
 
 void VulkanEngine::createFramebuffers() {
-	for (const auto & imageView : m_imageViews) {
-		vk::ImageView attachments = *imageView;
+	for (const auto & imageView : m_swapImageViews) {
+		std::array attachments = {*imageView, *m_depthImageView};
 		vk::FramebufferCreateInfo framebufferInfo{
 			.renderPass = m_renderPass,
-			.attachmentCount = 1,
-			.pAttachments = &attachments,
+			.attachmentCount = static_cast<u32>(attachments.size()),
+			.pAttachments = attachments.data(),
 			.width = m_swapExtent.width,
 			.height = m_swapExtent.height,
 			.layers = 1
@@ -288,22 +258,40 @@ void VulkanEngine::createRenderPass() {
 		.attachment = 0,
 		.layout = vk::ImageLayout::eColorAttachmentOptimal
 	};
+	vk::AttachmentDescription depthAttachment = {
+		.format = vk::Format::eD32Sfloat,
+		.samples = vk::SampleCountFlagBits::e1,
+		.loadOp = vk::AttachmentLoadOp::eClear,
+		.storeOp = vk::AttachmentStoreOp::eDontCare,
+		.stencilLoadOp = vk::AttachmentLoadOp::eDontCare,
+		.stencilStoreOp = vk::AttachmentStoreOp::eDontCare,
+		.initialLayout = vk::ImageLayout::eUndefined,
+		.finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal
+	};
+	vk::AttachmentReference depthAttachmentRef = {
+		.attachment = 1,
+		.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal
+	};
+
+	std::array attachments = {colorAttachment, depthAttachment};
+
 	vk::SubpassDescription subpass = {
 		.pipelineBindPoint = vk::PipelineBindPoint::eGraphics,
 		.colorAttachmentCount = 1,
-		.pColorAttachments = &colorAttachmentRef
+		.pColorAttachments = &colorAttachmentRef,
+		.pDepthStencilAttachment = &depthAttachmentRef
 	};
 	vk::SubpassDependency dependency = {
 		.srcSubpass = vk::SubpassExternal,
 		.dstSubpass = 0,
-		.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput,
-		.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput,
-		.srcAccessMask = vk::AccessFlagBits::eNone,
-		.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite,
+		.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eLateFragmentTests,
+		.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
+		.srcAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentWrite,
+		.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite,
 	};
 	vk::RenderPassCreateInfo renderPassInfo = {
-		.attachmentCount = 1,
-		.pAttachments = &colorAttachment,
+		.attachmentCount = static_cast<u32>(attachments.size()),
+		.pAttachments = attachments.data(),
 		.subpassCount = 1,
 		.pSubpasses = &subpass,
 		.dependencyCount = 1,
@@ -354,13 +342,13 @@ void VulkanEngine::createGraphicsPipeline() {
 	vk::raii::ShaderModule vertShader = createShaderModule(readFile("shaders/shader.vert.spv"));
 	vk::raii::ShaderModule fragShader = createShaderModule(readFile("shaders/shader.frag.spv"));
 
-	vk::PipelineShaderStageCreateInfo vertShaderStageInfo{
+	vk::PipelineShaderStageCreateInfo vertShaderStageInfo = {
 		.stage = vk::ShaderStageFlagBits::eVertex,
 		.module = vertShader,
 		.pName = "main"
 	};
 
-	vk::PipelineShaderStageCreateInfo fragShaderStageInfo{
+	vk::PipelineShaderStageCreateInfo fragShaderStageInfo = {
 		.stage = vk::ShaderStageFlagBits::eFragment,
 		.module = fragShader,
 		.pName = "main"
@@ -370,14 +358,14 @@ void VulkanEngine::createGraphicsPipeline() {
 
 	auto bindingDescription = Vertex::getBindingDescription();
 	auto attributeDescriptions = Vertex::getAttributeDescriptions();
-	vk::PipelineVertexInputStateCreateInfo vertexInputInfo{
+	vk::PipelineVertexInputStateCreateInfo vertexInputInfo = {
 		.vertexBindingDescriptionCount = 1,
 		.pVertexBindingDescriptions = &bindingDescription,
 		.vertexAttributeDescriptionCount = static_cast<u32>(attributeDescriptions.size()),
 		.pVertexAttributeDescriptions = attributeDescriptions.data()
 	};
 
-	vk::PipelineInputAssemblyStateCreateInfo inputAssembly{
+	vk::PipelineInputAssemblyStateCreateInfo inputAssembly = {
 		.topology = vk::PrimitiveTopology::eTriangleList
 	};
 
@@ -392,7 +380,7 @@ void VulkanEngine::createGraphicsPipeline() {
 		.scissorCount = 1,
 	};
 
-	vk::PipelineRasterizationStateCreateInfo rasterizer{
+	vk::PipelineRasterizationStateCreateInfo rasterizer = {
 		.depthClampEnable = vk::False,
 		.rasterizerDiscardEnable = vk::False,
 		.polygonMode = vk::PolygonMode::eFill,
@@ -402,29 +390,37 @@ void VulkanEngine::createGraphicsPipeline() {
 		.lineWidth = 1.0f,
 	};
 
-	vk::PipelineMultisampleStateCreateInfo multisampling{
+	vk::PipelineMultisampleStateCreateInfo multisampling = {
 		.rasterizationSamples = vk::SampleCountFlagBits::e1,
 		.sampleShadingEnable = vk::False,
 	};
 
-	vk::PipelineColorBlendAttachmentState colorBlendAttachment{
+	vk::PipelineDepthStencilStateCreateInfo depthStencil = {
+		.depthTestEnable = vk::True,
+		.depthWriteEnable = vk::True,
+		.depthCompareOp = vk::CompareOp::eLess,
+		.depthBoundsTestEnable = vk::False,
+		.stencilTestEnable = vk::False
+	};
+
+	vk::PipelineColorBlendAttachmentState colorBlendAttachment = {
 		.blendEnable = vk::False,
 		.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
 	};
 
-	vk::PipelineColorBlendStateCreateInfo colorBlending{
+	vk::PipelineColorBlendStateCreateInfo colorBlending = {
 		.logicOpEnable = vk::False,
 		.attachmentCount = 1,
 		.pAttachments = &colorBlendAttachment
 	};
 
-	vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
+	vk::PipelineLayoutCreateInfo pipelineLayoutInfo = {
 		.setLayoutCount = 1,
 		.pSetLayouts = &*m_descriptorSetLayout,
 	};
 	m_pipelineLayout = vk::raii::PipelineLayout(m_device, pipelineLayoutInfo);
 
-	vk::GraphicsPipelineCreateInfo pipelineInfo{
+	vk::GraphicsPipelineCreateInfo pipelineInfo = {
 		.stageCount = 2,
 		.pStages = shaderStages,
 		.pVertexInputState = &vertexInputInfo,
@@ -432,7 +428,7 @@ void VulkanEngine::createGraphicsPipeline() {
 		.pViewportState = &viewportState,
 		.pRasterizationState = &rasterizer,
 		.pMultisampleState = &multisampling,
-		.pDepthStencilState = nullptr,
+		.pDepthStencilState = &depthStencil,
 		.pColorBlendState = &colorBlending,
 		.pDynamicState = &dynamicState,
 		.layout = m_pipelineLayout,
@@ -467,7 +463,7 @@ void VulkanEngine::createSyncObjects() {
 		m_imageAvailableSemaphores.emplace_back(m_device, vk::SemaphoreCreateInfo{});
 		m_inFlightFences.emplace_back(m_device, vk::FenceCreateInfo{ .flags = vk::FenceCreateFlagBits::eSignaled });
 	}
-	for (size_t i = 0; i < m_imageViews.size(); ++i) {
+	for (size_t i = 0; i < m_swapImageViews.size(); ++i) {
 		m_renderFinishedSemaphores.emplace_back(m_device, vk::SemaphoreCreateInfo{});
 	}
 }
@@ -485,50 +481,6 @@ void VulkanEngine::createQueryPool() {
 	};
 
 	m_queryPool = vk::raii::QueryPool(m_device, createInfo);
-}
-
-void VulkanEngine::createVertexBuffer() {
-	const u64 bufferSize = sizeof(Vertex) * vertices.size();
-
-	auto [stagingBuffer, stagingBufferMemory] = createBuffer(
-		bufferSize,
-		vk::BufferUsageFlagBits::eTransferSrc,
-		vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible
-	);
-
-	void* data = stagingBufferMemory.mapMemory(0, bufferSize, {});
-	memcpy(data, vertices.data(), bufferSize);
-	stagingBufferMemory.unmapMemory();
-
-	std::tie(m_vertexBuffer, m_vertexBufferMemory) = createBuffer(
-		bufferSize,
-		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
-		vk::MemoryPropertyFlagBits::eDeviceLocal
-	);
-
-	copyBuffer(stagingBuffer, m_vertexBuffer, bufferSize);
-}
-
-void VulkanEngine::createIndexBuffer() {
-	const u64 bufferSize = sizeof(u16) * indices.size();
-
-	auto [stagingBuffer, stagingBufferMemory] = createBuffer(
-		bufferSize,
-		vk::BufferUsageFlagBits::eTransferSrc,
-		vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible
-	);
-
-	void* data = stagingBufferMemory.mapMemory(0, bufferSize, {});
-	memcpy(data, indices.data(), bufferSize);
-	stagingBufferMemory.unmapMemory();
-
-	std::tie(m_indexBuffer, m_indexBufferMemory) = createBuffer(
-		bufferSize,
-		vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst,
-		vk::MemoryPropertyFlagBits::eDeviceLocal
-	);
-
-	copyBuffer(stagingBuffer, m_indexBuffer, bufferSize);
 }
 
 void VulkanEngine::createDescriptorSetLayout() {
@@ -625,20 +577,7 @@ void VulkanEngine::createDescriptorSets() {
 }
 
 void VulkanEngine::createTextureImageView() {
-	vk::ImageViewCreateInfo createInfo = {
-		.image = m_textureImage,
-		.viewType = vk::ImageViewType::e2D,
-		.format = vk::Format::eR8G8B8A8Srgb,
-		.subresourceRange = {
-			.aspectMask = vk::ImageAspectFlagBits::eColor,
-			.baseMipLevel = 0,
-			.levelCount = 1,
-			.baseArrayLayer = 0,
-			.layerCount = 1
-		}
-	};
-
-	m_textureImageView = vk::raii::ImageView(m_device, createInfo);
+	m_textureImageView = createImageView(m_textureImage, vk::Format::eR8G8B8A8Srgb, vk::ImageAspectFlagBits::eColor);
 }
 
 void VulkanEngine::createTextureSampler() {
@@ -660,6 +599,19 @@ void VulkanEngine::createTextureSampler() {
 	};
 
 	m_textureSampler = vk::raii::Sampler(m_device, createInfo);
+}
+
+void VulkanEngine::createDepthResources() {
+	std::tie(m_depthImage, m_depthImageMemory) = createImage(
+		m_swapExtent.width,
+		m_swapExtent.height,
+		vk::Format::eD32Sfloat,
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eDepthStencilAttachment,
+		vk::MemoryPropertyFlagBits::eDeviceLocal
+	);
+
+	m_depthImageView = createImageView(m_depthImage, vk::Format::eD32Sfloat, vk::ImageAspectFlagBits::eDepth);
 }
 
 vk::raii::ShaderModule VulkanEngine::createShaderModule(const std::vector<char>& code) const {
@@ -798,12 +750,33 @@ void VulkanEngine::createTextureImage(const char* path) {
 	transitionImageLayout(m_textureImage, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
 }
 
+vk::raii::ImageView VulkanEngine::createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags) const {
+	vk::ImageViewCreateInfo createInfo = {
+		.image = image,
+		.viewType = vk::ImageViewType::e2D,
+		.format = format,
+		.subresourceRange = {
+			.aspectMask = aspectFlags,
+			.baseMipLevel = 0,
+			.levelCount = 1,
+			.baseArrayLayer = 0,
+			.layerCount = 1
+		}
+	};
+
+	return vk::raii::ImageView(m_device, createInfo);
+}
+
 void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, const u32 imageIndex) const {
 	vk::CommandBufferBeginInfo beginInfo;
 	commandBuffer.begin(beginInfo);
 	commandBuffer.resetQueryPool(m_queryPool, 0, 2);
 	commandBuffer.writeTimestamp(vk::PipelineStageFlagBits::eTopOfPipe, m_queryPool, 0);
-	vk::ClearValue clearColor = { {0.0f, 0.0f, 0.0f, 1.0f} };
+	std::array<vk::ClearValue, 2> clearValues = {
+		vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f),
+		vk::ClearDepthStencilValue(1.0f, 0)
+	};
+
 	vk::RenderPassBeginInfo renderPassInfo = {
 		.renderPass = m_renderPass,
 		.framebuffer = m_framebuffers[imageIndex],
@@ -811,8 +784,8 @@ void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuf
 			.offset = {0, 0},
 			.extent = m_swapExtent,
 		},
-		.clearValueCount = 1,
-		.pClearValues = &clearColor,
+		.clearValueCount = static_cast<u32>(clearValues.size()),
+		.pClearValues = clearValues.data(),
 	};
 	commandBuffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
 	commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
@@ -831,12 +804,11 @@ void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuf
 	commandBuffer.setViewport(0, { viewport });
 	commandBuffer.setScissor(0, { scissor });
 
-	commandBuffer.bindVertexBuffers(0, *m_vertexBuffer, {0});
-	commandBuffer.bindIndexBuffer(m_indexBuffer, 0, vk::IndexType::eUint16);
-
 	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, *m_descriptorSets[m_currentFrame], nullptr);
 
-	commandBuffer.drawIndexed(static_cast<u32>(indices.size()), 1, 0, 0, 0);
+	for (const auto& mesh : m_assetManager->getMeshes()) {
+		mesh.draw(commandBuffer);
+	}
 
 	m_debugWindow->draw(commandBuffer);
 

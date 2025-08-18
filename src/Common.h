@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <array>
 
 #include "Logger.h"
 
@@ -35,4 +36,19 @@ inline std::string listify(std::vector<const char*> vs) {
     }
     if (r.length() == 0) return "";
     return r.substr(0, r.length ()- 2);
+}
+
+inline std::string storageSizeToString(size_t bytes) {
+    static constexpr std::array units = {"B", "KB", "MB", "GB", "TB"};
+
+    double n = static_cast<double>(bytes);
+    int numDivisions = 0;
+    while (n >= 1000) {
+        n /= 1000.0f;
+        ++numDivisions;
+        if (numDivisions >= units.size()) {
+            break;
+        }
+    }
+    return std::format("{:.2f} {}", n, units[numDivisions]);
 }

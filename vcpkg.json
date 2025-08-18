@@ -9,6 +9,7 @@
         "vulkan-binding"
       ]
     },
-    "stb"
+    "stb",
+    "tinygltf"
   ]
 }

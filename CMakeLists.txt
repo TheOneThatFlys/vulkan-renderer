@@ -13,6 +13,7 @@ find_package(imgui CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(Stb REQUIRED)
 
+
 # set up Vulkan C++ module
 add_library(VulkanCppModule)
 add_library(Vulkan::cppm ALIAS VulkanCppModule)
@@ -63,6 +64,8 @@ target_link_libraries(VulkanRenderer PRIVATE glm::glm)
 target_link_libraries(VulkanRenderer PRIVATE imgui::imgui)
 target_link_libraries(VulkanRenderer PRIVATE Vulkan::cppm)
 
+find_path(TINYGLTF_INCLUDE_DIRS "tiny_gltf.h")
+target_include_directories(VulkanRenderer PRIVATE ${TINYGLTF_INCLUDE_DIRS})
 target_include_directories(VulkanRenderer PRIVATE ${Stb_INCLUDE_DIR})
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
