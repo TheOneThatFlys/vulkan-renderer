@@ -21,6 +21,7 @@ add_library(Vulkan::cppm ALIAS VulkanCppModule)
 target_compile_definitions(VulkanCppModule PUBLIC
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
         VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1
+        VULKAN_HPP_NO_SPACESHIP_OPERATOR=1
 )
 target_include_directories(VulkanCppModule
         PRIVATE

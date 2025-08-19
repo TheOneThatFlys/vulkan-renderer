@@ -807,7 +807,7 @@ void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuf
 	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, *m_descriptorSets[m_currentFrame], nullptr);
 
 	for (const auto& mesh : m_assetManager->getMeshes()) {
-		mesh.draw(commandBuffer);
+		mesh->draw(commandBuffer);
 	}
 
 	m_debugWindow->draw(commandBuffer);

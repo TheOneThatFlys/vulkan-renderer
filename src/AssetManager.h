@@ -41,15 +41,18 @@ struct Vertex {
         return descriptions;
     }
 };
+
 class Mesh {
 public:
-    Mesh(VulkanEngine* engine, const std::vector<glm::vec3>& positions, const std::vector<glm::vec2>& uvs, const std::vector<u16>& indexes);
-    Mesh(VulkanEngine* engine, const std::vector<Vertex>& vertices, const std::vector<u16> &indexes);
+    Mesh(VulkanEngine* engine, const tinygltf::Model& ctx, const tinygltf::Primitive& primitive);
+    Mesh(VulkanEngine* engine, const std::vector<Vertex>& vertices, const std::vector<u32> &indexes);
     Mesh(Mesh&&) = default;
     void draw(const vk::raii::CommandBuffer &commandBuffer) const;
 private:
     void createVertexBuffer(const std::vector<Vertex> &vertices);
-    void createIndexBuffer(const std::vector<u16>& indexes);
+    void createIndexBuffer(const std::vector<u32>& indexes);
+
+    static void validateAccessor(const tinygltf::Accessor& accessor, u32 componentType, u32 type);
 
     VulkanEngine* m_engine = nullptr;
 
@@ -62,19 +65,41 @@ private:
     u32 m_indexCount;
 };
 
+class Material {
+public:
+    Material();
+    void use(const vk::raii::CommandBuffer& commandBuffer);
+};
+
+class Texture {
+public:
+    Texture();
+private:
+    vk::raii::Image m_image;
+    vk::raii::DeviceMemory m_deviceMemory;
+    vk::raii::ImageView m_imageView;
+    vk::raii::Sampler m_sampler;
+};
+
+struct Model {
+    Mesh* mesh;
+    Material* material;
+    glm::mat4 transform;
+};
+
 class AssetManager {
 public:
     AssetManager(VulkanEngine* engine);
     void load(const char* root);
-    std::vector<Mesh>& getMeshes();
+    std::vector<std::unique_ptr<Mesh>>& getMeshes();
 private:
     void loadGLB(std::string path);
-
-    static tinygltf::Buffer& getDataFromAccessor(tinygltf::Model ctx, u32 accessor);
 
     VulkanEngine* m_engine;
 
     tinygltf::TinyGLTF m_loader;
 
-    std::vector<Mesh> m_meshes;
+    std::vector<std::unique_ptr<Mesh>> m_meshes;
+    std::vector<std::unique_ptr<Material>> m_materials;
+    std::vector<std::unique_ptr<Model>> m_models;
 };

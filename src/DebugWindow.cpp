@@ -91,7 +91,7 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
             size_t usedGB = m_vramUsage.gpuUsed;
             size_t totalGB = m_vramUsage.gpuAvailable;
             std::string progress = std::format("{} / {}", storageSizeToString(usedGB), storageSizeToString(totalGB));
-            ImGui::ProgressBar(static_cast<double>(usedGB) / totalGB, ImVec2(0.0f, 0.0f), progress.c_str());
+            ImGui::ProgressBar(static_cast<float>(usedGB) / totalGB, ImVec2(0.0f, 0.0f), progress.c_str());
 
             ImGui::EndTabItem();
         }

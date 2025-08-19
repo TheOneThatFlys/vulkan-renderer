@@ -66,12 +66,13 @@ public:
 	FrameTimeInfo getFrameTimeInfo() const;
 	VRAMUsageInfo getVramUsage() const;
 
-	vk::raii::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags) const;
 	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
-	std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties) const;
-	void transitionImageLayout(vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
-	void copyBufferToImage(vk::raii::Buffer& buffer, vk::raii::Image& image, u32 width, u32 height) const;
 	void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const;
+	void createTextureImage(const char* path);
+	std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties) const;
+	vk::raii::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags) const;
+	void copyBufferToImage(vk::raii::Buffer& buffer, vk::raii::Image& image, u32 width, u32 height) const;
+	void transitionImageLayout(vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
 
 private:
 	void initWindow();
@@ -108,7 +109,6 @@ private:
 
 	vk::Extent2D chooseExtent(const vk::SurfaceCapabilitiesKHR& capabilities) const;
 
-	void createTextureImage(const char* path);
 	u32 findMemoryType(u32 typeFilter, vk::MemoryPropertyFlags properties) const;
 
 	vk::raii::CommandBuffer beginSingleCommand() const;

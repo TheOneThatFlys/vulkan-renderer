@@ -16,11 +16,14 @@ CameraController::CameraController(GLFWwindow* window) : m_window(window) {
 
 void CameraController::update(float deltaTime) {
     // movement
-    const float multiplier = deltaTime * m_speed;
+    float multiplier = deltaTime * m_speed;
     const glm::vec3 forwards = glm::normalize(glm::vec3(cos(m_yaw), 0.0f, sin(m_yaw)));
     const glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
     const glm::vec3 right = glm::normalize(glm::cross(forwards, up));
     glm::vec3 dv = glm::vec3(0.0f);
+    if (InputManager::keyHeld(GLFW_KEY_LEFT_CONTROL)) {
+        multiplier *= 3.0f;
+    }
     if (InputManager::keyHeld(GLFW_KEY_W)) {
         dv += forwards;
     }
