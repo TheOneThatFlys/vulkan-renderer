@@ -5,7 +5,7 @@ layout(location = 1) in vec2 inUV;
 
 layout(location = 0) out vec2 UV;
 
-layout(binding = 0) uniform MatrixUniforms {
+layout(set = 0, binding = 0) uniform MatrixUniforms {
     mat4 model;
     mat4 view;
     mat4 projection;

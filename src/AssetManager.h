@@ -50,7 +50,8 @@ public:
     void draw(const vk::raii::CommandBuffer &commandBuffer) const;
 private:
     void createVertexBuffer(const std::vector<Vertex> &vertices);
-    void createIndexBuffer(const std::vector<u32>& indexes);
+    template<typename T>
+    void createIndexBuffer(const std::vector<T>& indexes);
 
     static void validateAccessor(const tinygltf::Accessor& accessor, u32 componentType, u32 type);
 
@@ -63,43 +64,60 @@ private:
     vk::raii::DeviceMemory m_indexBufferMemory = nullptr;
 
     u32 m_indexCount;
-};
-
-class Material {
-public:
-    Material();
-    void use(const vk::raii::CommandBuffer& commandBuffer);
+    vk::IndexType m_indexType;
 };
 
 class Texture {
 public:
-    Texture();
+    Texture(const VulkanEngine *engine, const unsigned char* pixels, u32 width, u32 height, vk::Format format = vk::Format::eR8G8B8A8Srgb);
+
+    const vk::raii::Image& getImage() const;
+    const vk::raii::DeviceMemory& getImageMemory() const;
+    const vk::raii::ImageView& getImageView() const;
+    const vk::raii::Sampler& getSampler() const;
 private:
-    vk::raii::Image m_image;
-    vk::raii::DeviceMemory m_deviceMemory;
-    vk::raii::ImageView m_imageView;
-    vk::raii::Sampler m_sampler;
+    vk::raii::Image m_image = nullptr;
+    vk::raii::DeviceMemory m_imageMemory = nullptr;
+    vk::raii::ImageView m_imageView = nullptr;
+    vk::raii::Sampler m_sampler = nullptr;
+};
+
+class Material {
+public:
+    Material(const Texture* base) : m_base(base) {}
+    void use(const vk::raii::CommandBuffer& commandBuffer);
+
+private:
+    const Texture* m_base;
 };
 
 struct Model {
-    Mesh* mesh;
-    Material* material;
-    glm::mat4 transform;
+    const Mesh* mesh;
+    const Material* material;
+    glm::mat4 transform = glm::mat4(1.0f);
 };
 
 class AssetManager {
 public:
-    AssetManager(VulkanEngine* engine);
+    explicit AssetManager(VulkanEngine* engine);
     void load(const char* root);
-    std::vector<std::unique_ptr<Mesh>>& getMeshes();
+    const std::vector<std::unique_ptr<Model>>& getModels() const;
+
+    const Texture* getTexture(const std::string& key) const;
+    const Material* getMaterial(const std::string& key) const;
+    const Mesh* getMesh(const std::string& key) const;
 private:
-    void loadGLB(std::string path);
+    void loadGLB(const std::string& path);
+    void loadImage(std::string path);
+
+    static std::string generateLocalKey(std::string path, u32 id);
 
     VulkanEngine* m_engine;
 
     tinygltf::TinyGLTF m_loader;
 
-    std::vector<std::unique_ptr<Mesh>> m_meshes;
-    std::vector<std::unique_ptr<Material>> m_materials;
+    std::unordered_map<std::string, std::unique_ptr<Mesh>> m_meshes;
+    std::unordered_map<std::string, std::unique_ptr<Material>> m_materials;
+    std::unordered_map<std::string, std::unique_ptr<Texture>> m_textures;
     std::vector<std::unique_ptr<Model>> m_models;
 };

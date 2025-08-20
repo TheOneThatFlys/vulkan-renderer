@@ -11,9 +11,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-#define STB_IMAGE_IMPLEMENTATION
 #include <iostream>
-#include <stb_image.h>
 
 #include "InputManager.h"
 #include "DebugWindow.h"
@@ -67,6 +65,7 @@ void VulkanEngine::run() {
 	m_debugWindow = std::make_unique<DebugWindow>(this, m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue, m_renderPass);
 	m_assetManager = std::make_unique<AssetManager>(this);
 	m_assetManager->load("assets");
+	createDescriptorSets();
 	InputManager::create(m_window);
 	mainLoop();
 	cleanup();
@@ -112,6 +111,14 @@ VRAMUsageInfo VulkanEngine::getVramUsage() const {
 	return info;
 }
 
+const vk::raii::Device & VulkanEngine::getDevice() const {
+	return m_device;
+}
+
+const vk::raii::PhysicalDevice & VulkanEngine::getPhysicalDevice() const {
+	return m_physicalDevice;
+}
+
 void VulkanEngine::initWindow() {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -141,11 +148,8 @@ void VulkanEngine::initVulkan() {
 	createUniformBuffers();
 	createDepthResources();
 	createFramebuffers();
-	createTextureImage("assets/monkey.jpg");
-	createTextureImageView();
-	createTextureSampler();
 	createDescriptorPool();
-	createDescriptorSets();
+	// createDescriptorSets();
 	createSyncObjects();
 }
 
@@ -452,17 +456,16 @@ void VulkanEngine::createCommandBuffers() {
 	vk::CommandBufferAllocateInfo allocInfo{
 		.commandPool = m_commandPool,
 		.level = vk::CommandBufferLevel::ePrimary,
-		.commandBufferCount = MAX_FRAMES_IN_FLIGHT,
+		.commandBufferCount = 1,
 	};
 
-	m_commandBuffers = m_device.allocateCommandBuffers(allocInfo);
+	m_commandBuffer = std::move(m_device.allocateCommandBuffers(allocInfo).front());
 }
 
 void VulkanEngine::createSyncObjects() {
-	for (u32 i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-		m_imageAvailableSemaphores.emplace_back(m_device, vk::SemaphoreCreateInfo{});
-		m_inFlightFences.emplace_back(m_device, vk::FenceCreateInfo{ .flags = vk::FenceCreateFlagBits::eSignaled });
-	}
+	m_imageAvailableSemaphore = vk::raii::Semaphore(m_device, vk::SemaphoreCreateInfo{});
+	m_inFlightFence = vk::raii::Fence(m_device, vk::FenceCreateInfo{ .flags = vk::FenceCreateFlagBits::eSignaled });
+
 	for (size_t i = 0; i < m_swapImageViews.size(); ++i) {
 		m_renderFinishedSemaphores.emplace_back(m_device, vk::SemaphoreCreateInfo{});
 	}
@@ -502,32 +505,28 @@ void VulkanEngine::createDescriptorSetLayout() {
 		.pBindings = bindings.data()
 	};
 	m_descriptorSetLayout = m_device.createDescriptorSetLayout(layoutInfo);
+	// m_materialDescriptorSetLayout = m_device.createDescriptorPool(layoutInfo);
 }
 
 void VulkanEngine::createUniformBuffers() {
 	vk::DeviceSize bufferSize = sizeof(MatrixUniforms);
-
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		auto [buffer, bufferMemory] = createBuffer(bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
-		m_uniformBuffers.emplace_back(std::move(buffer));
-		m_uniformBuffersMemory.emplace_back(std::move(bufferMemory));
-		m_uniformBuffersMapped.push_back(m_uniformBuffersMemory[i].mapMemory(0, bufferSize));
-	}
+	std::tie(m_uniformBuffer, m_uniformBufferMemory) = createBuffer(bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
+	m_uniformBufferMapped = m_uniformBufferMemory.mapMemory(0, bufferSize);
 }
 
 void VulkanEngine::createDescriptorPool() {
 	vk::DescriptorPoolSize uniformPoolSize = {
 		.type = vk::DescriptorType::eUniformBuffer,
-		.descriptorCount = MAX_FRAMES_IN_FLIGHT,
+		.descriptorCount = 1,
 	};
 	vk::DescriptorPoolSize samplerPoolSize = {
 		.type = vk::DescriptorType::eCombinedImageSampler,
-		.descriptorCount = MAX_FRAMES_IN_FLIGHT
+		.descriptorCount = 1
 	};
 	std::array poolSizes = {uniformPoolSize, samplerPoolSize};
 	vk::DescriptorPoolCreateInfo poolInfo = {
 		.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-		.maxSets = MAX_FRAMES_IN_FLIGHT,
+		.maxSets = 1,
 		.poolSizeCount = static_cast<u32>(poolSizes.size()),
 		.pPoolSizes = poolSizes.data(),
 	};
@@ -535,70 +534,43 @@ void VulkanEngine::createDescriptorPool() {
 }
 
 void VulkanEngine::createDescriptorSets() {
-	std::vector layouts(MAX_FRAMES_IN_FLIGHT, *m_descriptorSetLayout);
 	vk::DescriptorSetAllocateInfo allocInfo = {
 		.descriptorPool = m_descriptorPool,
-		.descriptorSetCount = MAX_FRAMES_IN_FLIGHT,
-		.pSetLayouts = layouts.data()
+		.descriptorSetCount = 1,
+		.pSetLayouts = &*m_descriptorSetLayout
 	};
-	m_descriptorSets = m_device.allocateDescriptorSets(allocInfo);
+	m_descriptorSet = std::move(m_device.allocateDescriptorSets(allocInfo).front());
 
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		vk::DescriptorBufferInfo bufferInfo = {
-			.buffer = m_uniformBuffers[i],
-			.offset = 0,
-			.range = sizeof(MatrixUniforms),
-		};
-		vk::DescriptorImageInfo imageInfo = {
-			.sampler = m_textureSampler,
-			.imageView = m_textureImageView,
-			.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
-		};
-
-		vk::WriteDescriptorSet uniformDescriptorWrite = {
-			.dstSet = m_descriptorSets[i],
-			.dstBinding = 0,
-			.dstArrayElement = 0,
-			.descriptorCount = 1,
-			.descriptorType = vk::DescriptorType::eUniformBuffer,
-			.pBufferInfo = &bufferInfo,
-		};
-		vk::WriteDescriptorSet samplerDescriptorWrite = {
-			.dstSet = m_descriptorSets[i],
-			.dstBinding = 1,
-			.dstArrayElement = 0,
-			.descriptorCount = 1,
-			.descriptorType = vk::DescriptorType::eCombinedImageSampler,
-			.pImageInfo = &imageInfo
-		};
-		std::array descriptorWrites = {uniformDescriptorWrite, samplerDescriptorWrite};
-		m_device.updateDescriptorSets(descriptorWrites, nullptr);
-	}
-}
-
-void VulkanEngine::createTextureImageView() {
-	m_textureImageView = createImageView(m_textureImage, vk::Format::eR8G8B8A8Srgb, vk::ImageAspectFlagBits::eColor);
-}
-
-void VulkanEngine::createTextureSampler() {
-	vk::SamplerCreateInfo createInfo = {
-		.magFilter = vk::Filter::eLinear,
-		.minFilter = vk::Filter::eLinear,
-		.mipmapMode = vk::SamplerMipmapMode::eLinear,
-		.addressModeU = vk::SamplerAddressMode::eRepeat,
-		.addressModeV = vk::SamplerAddressMode::eRepeat,
-		.addressModeW = vk::SamplerAddressMode::eRepeat,
-		.mipLodBias = 0.0f,
-		.anisotropyEnable = vk::True,
-		.maxAnisotropy = m_physicalDevice.getProperties().limits.maxSamplerAnisotropy,
-		.compareEnable = vk::False,
-		.compareOp = vk::CompareOp::eAlways,
-		.minLod = 0.0f,
-		.maxLod = 0.0f,
-		.unnormalizedCoordinates = vk::False
+	vk::DescriptorBufferInfo bufferInfo = {
+		.buffer = m_uniformBuffer,
+		.offset = 0,
+		.range = sizeof(MatrixUniforms),
+	};
+	vk::DescriptorImageInfo imageInfo = {
+		.sampler = m_assetManager->getTexture("assets/house.glb2")->getSampler(),
+		.imageView = m_assetManager->getTexture("assets/house.glb2")->getImageView(),
+		.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
 	};
 
-	m_textureSampler = vk::raii::Sampler(m_device, createInfo);
+	vk::WriteDescriptorSet uniformDescriptorWrite = {
+		.dstSet = m_descriptorSet,
+		.dstBinding = 0,
+		.dstArrayElement = 0,
+		.descriptorCount = 1,
+		.descriptorType = vk::DescriptorType::eUniformBuffer,
+		.pBufferInfo = &bufferInfo,
+	};
+	vk::WriteDescriptorSet samplerDescriptorWrite = {
+		.dstSet = m_descriptorSet,
+		.dstBinding = 1,
+		.dstArrayElement = 0,
+		.descriptorCount = 1,
+		.descriptorType = vk::DescriptorType::eCombinedImageSampler,
+		.pImageInfo = &imageInfo
+	};
+	std::array descriptorWrites = {uniformDescriptorWrite, samplerDescriptorWrite};
+	m_device.updateDescriptorSets(descriptorWrites, nullptr);
+
 }
 
 void VulkanEngine::createDepthResources() {
@@ -721,35 +693,6 @@ vk::Extent2D VulkanEngine::chooseExtent(const vk::SurfaceCapabilitiesKHR& capabi
 	return extent;
 }
 
-void VulkanEngine::createTextureImage(const char* path) {
-	i32 width, height, channels;
-	stbi_set_flip_vertically_on_load(true);
-	stbi_uc* pixels = stbi_load(path, &width, &height, &channels, STBI_rgb_alpha);
-	if (pixels == nullptr) throw std::runtime_error(std::format("Unable to load image at {} ({})", path, stbi_failure_reason()));
-	vk::DeviceSize imageSize = width * height * 4;
-
-	auto [stagingBuffer, stagingBufferMemory] = createBuffer(imageSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
-	void* data = stagingBufferMemory.mapMemory(0, imageSize);
-	memcpy(data, pixels, imageSize);
-	stagingBufferMemory.unmapMemory();
-	stbi_image_free(pixels);
-
-	std::tie(m_textureImage, m_textureImageMemory) = createImage(
-		width, height,
-		vk::Format::eR8G8B8A8Srgb,
-		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
-		vk::MemoryPropertyFlagBits::eDeviceLocal
-	);
-
-	// transition image layout for optimal copying
-	transitionImageLayout(m_textureImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
-	// copy staging buffer data to image
-	copyBufferToImage(stagingBuffer, m_textureImage, width, height);
-	// transition to format optimal for shader reads
-	transitionImageLayout(m_textureImage, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
-}
-
 vk::raii::ImageView VulkanEngine::createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags) const {
 	vk::ImageViewCreateInfo createInfo = {
 		.image = image,
@@ -804,10 +747,10 @@ void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuf
 	commandBuffer.setViewport(0, { viewport });
 	commandBuffer.setScissor(0, { scissor });
 
-	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, *m_descriptorSets[m_currentFrame], nullptr);
+	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, *m_descriptorSet, nullptr);
 
-	for (const auto& mesh : m_assetManager->getMeshes()) {
-		mesh->draw(commandBuffer);
+	for (const auto& model : m_assetManager->getModels()) {
+		model->mesh->draw(commandBuffer);
 	}
 
 	m_debugWindow->draw(commandBuffer);
@@ -997,7 +940,7 @@ void VulkanEngine::mainLoop() {
 		InputManager::update();
 		glfwPollEvents();
 		drawFrame();
-		const float nowTime = static_cast<float>(glfwGetTime());
+		const auto nowTime = static_cast<float>(glfwGetTime());
 		m_deltaTime = nowTime - prevTime;
 		m_camera->update(m_deltaTime);
 		prevTime = nowTime;
@@ -1006,27 +949,26 @@ void VulkanEngine::mainLoop() {
 }
 
 void VulkanEngine::drawFrame() {
-	// m_graphicsQueue.waitIdle();
 	// wait indefinitely
-	while (m_device.waitForFences(*m_inFlightFences[m_currentFrame], vk::True, std::numeric_limits<u64>::max()) == vk::Result::eTimeout) {}
-	m_device.resetFences(*m_inFlightFences[m_currentFrame]);
-	updateUniformBuffer(m_currentFrame);
-	auto [result, imageIndex] = m_swapChain.acquireNextImage(std::numeric_limits<u64>::max(), *m_imageAvailableSemaphores[m_currentFrame], nullptr);
-	m_commandBuffers[m_currentFrame].reset();
-	recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex);
+	while (m_device.waitForFences(*m_inFlightFence, vk::True, std::numeric_limits<u64>::max()) == vk::Result::eTimeout) {}
+	m_device.resetFences(*m_inFlightFence);
+	updateUniformBuffer();
+	auto [result, imageIndex] = m_swapChain.acquireNextImage(std::numeric_limits<u64>::max(), *m_imageAvailableSemaphore, nullptr);
+	m_commandBuffer.reset();
+	recordCommandBuffer(m_commandBuffer, imageIndex);
 
 	vk::PipelineStageFlags waitStages[] = { vk::PipelineStageFlagBits::eColorAttachmentOutput };
 	vk::SubmitInfo submitInfo{
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &*m_imageAvailableSemaphores[m_currentFrame],
+		.pWaitSemaphores = &*m_imageAvailableSemaphore,
 		.pWaitDstStageMask = waitStages,
 		.commandBufferCount = 1,
-		.pCommandBuffers = &*m_commandBuffers[m_currentFrame],
+		.pCommandBuffers = &*m_commandBuffer,
 		.signalSemaphoreCount = 1,
 		.pSignalSemaphores = &*m_renderFinishedSemaphores[imageIndex],
 	};
 
-	m_graphicsQueue.submit(submitInfo, m_inFlightFences[m_currentFrame]);
+	m_graphicsQueue.submit(submitInfo, m_inFlightFence);
 
 	vk::PresentInfoKHR presentInfo{
 		.waitSemaphoreCount = 1,
@@ -1037,23 +979,19 @@ void VulkanEngine::drawFrame() {
 	};
 	vk::Result presentResult = m_presentQueue.presentKHR(presentInfo);
 	if (presentResult != vk::Result::eSuccess) throw std::runtime_error("Error presenting frame");
-
-	m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void VulkanEngine::updateUniformBuffer(const u32 currentImage) const {
+void VulkanEngine::updateUniformBuffer() const {
 	MatrixUniforms ubo{
 		.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.0f)),
 		.view = m_camera->getViewMatrix(),
 		.projection = m_camera->getProjectionMatrix(),
 	};
-	memcpy(m_uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+	memcpy(m_uniformBufferMapped, &ubo, sizeof(ubo));
 }
 
 void VulkanEngine::cleanup() const {
-	for (auto const& buffer : m_uniformBuffersMemory) {
-		buffer.unmapMemory();
-	}
+	m_uniformBufferMemory.unmapMemory();
 
 	glfwDestroyWindow(m_window);
 	glfwTerminate();

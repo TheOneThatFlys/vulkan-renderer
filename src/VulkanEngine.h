@@ -15,10 +15,8 @@
 #include "Common.h"
 #include "CameraController.h"
 
-constexpr uint32_t WINDOW_WIDTH = 1280;
-constexpr uint32_t WINDOW_HEIGHT = 720;
-
-constexpr u32 MAX_FRAMES_IN_FLIGHT = 2;
+constexpr u32 WINDOW_WIDTH = 1280;
+constexpr u32 WINDOW_HEIGHT = 720;
 
 constexpr std::array validationLayers = {
 	"VK_LAYER_KHRONOS_validation"
@@ -65,10 +63,11 @@ public:
 	DebugWindow* getDebugWindow() const;
 	FrameTimeInfo getFrameTimeInfo() const;
 	VRAMUsageInfo getVramUsage() const;
+	const vk::raii::Device& getDevice() const;
+	const vk::raii::PhysicalDevice& getPhysicalDevice() const;
 
 	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
 	void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const;
-	void createTextureImage(const char* path);
 	std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties) const;
 	vk::raii::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags) const;
 	void copyBufferToImage(vk::raii::Buffer& buffer, vk::raii::Image& image, u32 width, u32 height) const;
@@ -94,8 +93,6 @@ private:
 	void createUniformBuffers();
 	void createDescriptorPool();
 	void createDescriptorSets();
-	void createTextureImageView();
-	void createTextureSampler();
 	void createDepthResources();
 
 	vk::raii::ShaderModule createShaderModule(const std::vector<char>& code) const;
@@ -117,7 +114,7 @@ private:
 	void mainLoop();
 	void recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, u32 imageIndex) const;
 	void drawFrame();
-	void updateUniformBuffer(u32 currentImage) const;
+	void updateUniformBuffer() const;
 
 	void cleanup() const;
 
@@ -149,26 +146,20 @@ private:
 	vk::raii::RenderPass m_renderPass = nullptr;
 
 	vk::raii::CommandPool m_commandPool = nullptr;
-	std::vector<vk::raii::CommandBuffer> m_commandBuffers;
+	vk::raii::CommandBuffer m_commandBuffer = nullptr;
 
-	std::vector<vk::raii::Semaphore> m_imageAvailableSemaphores;
+	vk::raii::Semaphore m_imageAvailableSemaphore = nullptr;
 	std::vector<vk::raii::Semaphore> m_renderFinishedSemaphores;
-	std::vector<vk::raii::Fence> m_inFlightFences;
-	u32 m_currentFrame = 0;
+	vk::raii::Fence m_inFlightFence = nullptr;
 
 	vk::raii::QueryPool m_queryPool = nullptr;
 
-	std::vector<vk::raii::Buffer> m_uniformBuffers;
-	std::vector<vk::raii::DeviceMemory> m_uniformBuffersMemory;
-	std::vector<void*> m_uniformBuffersMapped;
+	vk::raii::Buffer m_uniformBuffer = nullptr;
+	vk::raii::DeviceMemory m_uniformBufferMemory = nullptr;
+	void* m_uniformBufferMapped = nullptr;
 
 	vk::raii::DescriptorPool m_descriptorPool = nullptr;
-	std::vector<vk::raii::DescriptorSet> m_descriptorSets;
-
-	vk::raii::Image m_textureImage = nullptr;
-	vk::raii::DeviceMemory m_textureImageMemory = nullptr;
-	vk::raii::ImageView m_textureImageView = nullptr;
-	vk::raii::Sampler m_textureSampler = nullptr;
+	vk::raii::DescriptorSet m_descriptorSet = nullptr;
 
 	vk::raii::Image m_depthImage = nullptr;
 	vk::raii::DeviceMemory m_depthImageMemory = nullptr;
