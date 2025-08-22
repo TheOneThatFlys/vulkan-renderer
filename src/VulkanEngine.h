@@ -14,6 +14,7 @@
 
 #include "Common.h"
 #include "CameraController.h"
+#include "Scene.h"
 
 constexpr u32 WINDOW_WIDTH = 1280;
 constexpr u32 WINDOW_HEIGHT = 720;
@@ -40,6 +41,8 @@ constexpr bool ENABLE_VALIDATION_LAYERS = true;
 // Forward decl.
 class DebugWindow;
 class AssetManager;
+template<typename T>
+class UniformBufferBlock;
 
 struct QueueFamilyIndices {
 	std::optional<u32> graphicsFamily;
@@ -50,10 +53,13 @@ struct QueueFamilyIndices {
 	}
 };
 
-struct MatrixUniforms {
-	glm::mat4 model;
+struct FrameUniforms {
 	glm::mat4 view;
 	glm::mat4 projection;
+};
+
+struct ModelUniforms {
+	glm::mat4 transform;
 };
 
 class VulkanEngine {
@@ -65,13 +71,18 @@ public:
 	VRAMUsageInfo getVramUsage() const;
 	const vk::raii::Device& getDevice() const;
 	const vk::raii::PhysicalDevice& getPhysicalDevice() const;
+	Scene* getScene() const;
 
 	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
 	void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const;
 	std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties) const;
 	vk::raii::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags) const;
-	void copyBufferToImage(vk::raii::Buffer& buffer, vk::raii::Image& image, u32 width, u32 height) const;
-	void transitionImageLayout(vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
+	void copyBufferToImage(const vk::raii::Buffer& buffer, const vk::raii::Image& image, u32 width, u32 height) const;
+	void transitionImageLayout(const vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
+	vk::raii::DescriptorSet createDescriptorSet(u32 set) const;
+	vk::raii::DescriptorSet createFrameDescriptorSet() const;
+	vk::raii::DescriptorSet createMaterialDescriptorSet() const;
+	vk::raii::DescriptorSet createModelDescriptorSet() const;
 
 private:
 	void initWindow();
@@ -89,10 +100,9 @@ private:
 	void createCommandBuffers();
 	void createSyncObjects();
 	void createQueryPool();
-	void createDescriptorSetLayout();
+	void createDescriptorSetLayouts();
 	void createUniformBuffers();
 	void createDescriptorPool();
-	void createDescriptorSets();
 	void createDepthResources();
 
 	vk::raii::ShaderModule createShaderModule(const std::vector<char>& code) const;
@@ -113,16 +123,16 @@ private:
 
 	void mainLoop();
 	void recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, u32 imageIndex) const;
-	void drawFrame();
-	void updateUniformBuffer() const;
+	void drawFrame() const;
 
 	void cleanup() const;
 
 	float m_deltaTime = 1.0f / 120.0f;
 
-	GLFWwindow* m_window = nullptr;
-
 	std::unique_ptr<CameraController> m_camera = nullptr;
+	std::unique_ptr<Scene> m_scene = nullptr;
+
+	GLFWwindow* m_window = nullptr;
 
 	vk::raii::Context m_context;
 	vk::raii::Instance m_instance = nullptr;
@@ -140,7 +150,7 @@ private:
 	std::vector<vk::raii::Framebuffer> m_framebuffers;
 	vk::Extent2D m_swapExtent;
 
-	vk::raii::DescriptorSetLayout m_descriptorSetLayout = nullptr;
+	std::vector<vk::raii::DescriptorSetLayout> m_descriptorSetLayouts;
 	vk::raii::PipelineLayout m_pipelineLayout = nullptr;
 	vk::raii::Pipeline m_pipeline = nullptr;
 	vk::raii::RenderPass m_renderPass = nullptr;
@@ -154,18 +164,18 @@ private:
 
 	vk::raii::QueryPool m_queryPool = nullptr;
 
-	vk::raii::Buffer m_uniformBuffer = nullptr;
-	vk::raii::DeviceMemory m_uniformBufferMemory = nullptr;
-	void* m_uniformBufferMapped = nullptr;
+	std::unique_ptr<UniformBufferBlock<FrameUniforms>> m_frameUniforms = nullptr;
+	std::unique_ptr<UniformBufferBlock<ModelUniforms>> m_modelUniforms = nullptr;
 
 	vk::raii::DescriptorPool m_descriptorPool = nullptr;
-	vk::raii::DescriptorSet m_descriptorSet = nullptr;
+	vk::raii::DescriptorSet m_frameDescriptorSet = nullptr;
+	vk::raii::DescriptorSet m_modelDescriptorSet = nullptr;
 
 	vk::raii::Image m_depthImage = nullptr;
 	vk::raii::DeviceMemory m_depthImageMemory = nullptr;
 	vk::raii::ImageView m_depthImageView = nullptr;
 
 	std::unique_ptr<AssetManager> m_assetManager = nullptr;
-	std::unique_ptr<DebugWindow> m_debugWindow;
+	std::unique_ptr<DebugWindow> m_debugWindow = nullptr;
 };
 

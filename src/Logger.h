@@ -1,17 +1,41 @@
 #pragma once
 
 #include <format>
+#include <iostream>
+#include <string>
 
 class Logger {
 public:
-    static Logger& get();
-    static void info(std::string s);
-    static void warn(std::string s);
-    static void error(std::string s);
-    static void raw(const std::string& s);
+    Logger() = delete;
 
-private:
-    Logger() {}
+    template <typename... Args>
+    static void info(std::format_string<Args...> fmt, Args&&... args) {
+        Logger::info(std::vformat(fmt.get(), std::make_format_args(args...)));
+    }
 
-    static Logger s_instance;
+    static void info(const std::string &s) {
+        raw("[INFO] " + s);
+    }
+
+    template <typename... Args>
+    static void warn(std::format_string<Args...> fmt, Args&&... args) {
+        Logger::warn(std::vformat(fmt.get(), std::make_format_args(args...)));
+    }
+
+    static void warn(const std::string &s) {
+        raw("[WARN] " + s);
+    }
+
+    template <typename... Args>
+    static void error(std::format_string<Args...> fmt, Args&&... args) {
+        Logger::error(std::vformat(fmt.get(), std::make_format_args(args...)));
+    }
+
+    static void error(const std::string &s) {
+        throw std::runtime_error("[ERROR] " + s);
+    }
+
+    static void raw(const std::string& s) {
+        std::cout << s << std::endl;
+    }
 };

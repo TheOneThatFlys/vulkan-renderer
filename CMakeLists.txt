@@ -58,6 +58,23 @@ add_executable (VulkanRenderer
         src/AssetManager.h
         src/Logger.cpp
         src/Logger.h
+        src/Mesh.cpp
+        src/Mesh.h
+        src/Vertex.cpp
+        src/Vertex.h
+        src/Texture.cpp
+        src/Texture.h
+        src/Material.cpp
+        src/Material.h
+        src/Node.cpp
+        src/Node.h
+        src/Scene.cpp
+        src/Scene.h
+        src/Instance.cpp
+        src/Instance.h
+        src/NodeType.h
+        src/UniformBufferBlock.cpp
+        src/UniformBufferBlock.h
 )
 
 target_link_libraries(VulkanRenderer PRIVATE glfw)

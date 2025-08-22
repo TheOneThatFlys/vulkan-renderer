@@ -5,13 +5,16 @@ layout(location = 1) in vec2 inUV;
 
 layout(location = 0) out vec2 UV;
 
-layout(set = 0, binding = 0) uniform MatrixUniforms {
-    mat4 model;
+layout(set = 0, binding = 0) uniform FrameUniforms {
     mat4 view;
     mat4 projection;
-} matrices;
+};
+
+layout(set = 2, binding = 0) uniform ModelUniforms {
+    mat4 model;
+};
 
 void main() {
-    gl_Position = matrices.projection * matrices.view * matrices.model * vec4(inPosition.xyz, 1.0);
-    UV = inUV;
+    gl_Position = projection * view * model * vec4(inPosition.xyz, 1.0);
+    UV = vec2(inUV.x, 1.0 - inUV.y);
 }

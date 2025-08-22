@@ -6,6 +6,7 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 #include <ranges>
+#include <stack>
 
 #include "VulkanEngine.h"
 
@@ -106,6 +107,36 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
 
                 ImGui::TreePop();
             }
+
+            Scene* scene = m_engine->getScene();
+            auto dfs = [&](const auto &self, Node* node, const u32 id) -> void {
+                if (ImGui::TreeNode(std::format("{} #{}", node->type, id).c_str())) {
+                    // position
+                    glm::vec3 pos = node->getPosition();
+                    float values[] = {pos.x, pos.y, pos.z};
+                    if (ImGui::DragFloat3("Position", values, 0.1f))
+                        node->setPosition(glm::vec3(values[0], values[1], values[2]));
+                    // rotation
+                    glm::quat rotation = node->getRotation();
+                    float values2[] = {rotation.x, rotation.y, rotation.z, rotation.w};
+                    if (ImGui::DragFloat4("Rotation", values2, 0.1f))
+                        node->setRotation(glm::quat(values2[3], values2[0], values2[1], values2[2]));
+                    // scale
+                    glm::vec3 scale = node->getScale();
+                    float values3[] = {scale.x, scale.y, scale.z};
+                    if (ImGui::DragFloat3("Scale", values3, 0.1f, 0.0f, std::numeric_limits<float>::max()))
+                        node->setScale(glm::vec3(values3[0], values3[1], values3[2]));
+
+                    // children
+                    u32 i = 0;
+                    for (const auto& child : node->getChildren()) {
+                        self(self, child.get(), i++);
+                    }
+                    ImGui::TreePop();
+                }
+            };
+            dfs(dfs, scene, 0);
+
             ImGui::EndTabItem();
         }
 

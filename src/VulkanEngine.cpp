@@ -8,14 +8,15 @@
 #include <fstream>
 #include <string>
 
-#include <glm/gtc/matrix_transform.hpp>
 #include <vulkan/vulkan_hpp_macros.hpp>
 
 #include <iostream>
+#include <glm/ext/matrix_transform.hpp>
 
 #include "InputManager.h"
 #include "DebugWindow.h"
 #include "AssetManager.h"
+#include "UniformBufferBlock.h"
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
@@ -65,7 +66,7 @@ void VulkanEngine::run() {
 	m_debugWindow = std::make_unique<DebugWindow>(this, m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue, m_renderPass);
 	m_assetManager = std::make_unique<AssetManager>(this);
 	m_assetManager->load("assets");
-	createDescriptorSets();
+	m_scene = m_assetManager->loadGLB("assets/house.glb");
 	InputManager::create(m_window);
 	mainLoop();
 	cleanup();
@@ -119,6 +120,10 @@ const vk::raii::PhysicalDevice & VulkanEngine::getPhysicalDevice() const {
 	return m_physicalDevice;
 }
 
+Scene * VulkanEngine::getScene() const {
+	return m_scene.get();
+}
+
 void VulkanEngine::initWindow() {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -140,16 +145,15 @@ void VulkanEngine::initVulkan() {
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
-	createDescriptorSetLayout();
+	createDescriptorSetLayouts();
 	createGraphicsPipeline();
 	createCommandPool();
 	createCommandBuffers();
 	createQueryPool();
-	createUniformBuffers();
 	createDepthResources();
 	createFramebuffers();
 	createDescriptorPool();
-	// createDescriptorSets();
+	createUniformBuffers();
 	createSyncObjects();
 }
 
@@ -418,9 +422,14 @@ void VulkanEngine::createGraphicsPipeline() {
 		.pAttachments = &colorBlendAttachment
 	};
 
+	std::vector<vk::DescriptorSetLayout> layouts;
+	layouts.reserve(m_descriptorSetLayouts.size());
+	for (const auto& layout : m_descriptorSetLayouts) {
+		layouts.push_back(*layout);
+	}
 	vk::PipelineLayoutCreateInfo pipelineLayoutInfo = {
-		.setLayoutCount = 1,
-		.pSetLayouts = &*m_descriptorSetLayout,
+		.setLayoutCount = static_cast<u32>(layouts.size()),
+		.pSetLayouts = layouts.data(), // evil pointer stuff
 	};
 	m_pipelineLayout = vk::raii::PipelineLayout(m_device, pipelineLayoutInfo);
 
@@ -486,32 +495,58 @@ void VulkanEngine::createQueryPool() {
 	m_queryPool = vk::raii::QueryPool(m_device, createInfo);
 }
 
-void VulkanEngine::createDescriptorSetLayout() {
+void VulkanEngine::createDescriptorSetLayouts() {
+	// frame
 	vk::DescriptorSetLayoutBinding uniformLayoutBinding = {
 		.binding = 0,
 		.descriptorType = vk::DescriptorType::eUniformBuffer,
 		.descriptorCount = 1,
 		.stageFlags = vk::ShaderStageFlagBits::eVertex
 	};
-	vk::DescriptorSetLayoutBinding samplerLayoutBinding = {
-		.binding = 1,
+	vk::DescriptorSetLayoutCreateInfo framelayoutInfo = {
+		.bindingCount = 1,
+		.pBindings = &uniformLayoutBinding
+	};
+	m_descriptorSetLayouts.push_back(m_device.createDescriptorSetLayout(framelayoutInfo));
+
+	// material
+	vk::DescriptorSetLayoutBinding materialBinding = {
+		.binding = 0,
 		.descriptorType = vk::DescriptorType::eCombinedImageSampler,
 		.descriptorCount = 1,
 		.stageFlags = vk::ShaderStageFlagBits::eFragment
 	};
-	std::array bindings = {uniformLayoutBinding, samplerLayoutBinding};
-	vk::DescriptorSetLayoutCreateInfo layoutInfo = {
-		.bindingCount = static_cast<u32>(bindings.size()),
-		.pBindings = bindings.data()
+	vk::DescriptorSetLayoutCreateInfo materialLayoutInfo = {
+		.bindingCount = 1,
+		.pBindings = &materialBinding
 	};
-	m_descriptorSetLayout = m_device.createDescriptorSetLayout(layoutInfo);
-	// m_materialDescriptorSetLayout = m_device.createDescriptorPool(layoutInfo);
+	m_descriptorSetLayouts.push_back(m_device.createDescriptorSetLayout(materialLayoutInfo));
+
+	// model
+	vk::DescriptorSetLayoutBinding modelBinding = {
+		.binding = 0,
+		.descriptorType = vk::DescriptorType::eUniformBuffer,
+		.descriptorCount = 1,
+		.stageFlags = vk::ShaderStageFlagBits::eVertex
+	};
+	vk::DescriptorSetLayoutCreateInfo modelLayoutInfo = {
+		.bindingCount = 1,
+		.pBindings = &modelBinding
+	};
+	m_descriptorSetLayouts.push_back(m_device.createDescriptorSetLayout(modelLayoutInfo));
 }
 
 void VulkanEngine::createUniformBuffers() {
-	vk::DeviceSize bufferSize = sizeof(MatrixUniforms);
-	std::tie(m_uniformBuffer, m_uniformBufferMemory) = createBuffer(bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
-	m_uniformBufferMapped = m_uniformBufferMemory.mapMemory(0, bufferSize);
+	// vk::DeviceSize bufferSize = sizeof(FrameUniforms);
+	// std::tie(m_uniformBuffer, m_uniformBufferMemory) = createBuffer(bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
+	// m_uniformBufferMapped = m_uniformBufferMemory.mapMemory(0, bufferSize);
+
+	m_frameDescriptorSet = createFrameDescriptorSet();
+	m_modelDescriptorSet = createModelDescriptorSet();
+	m_frameUniforms = std::make_unique<UniformBufferBlock<FrameUniforms>>(this, 0);
+	m_frameUniforms->addToSet(m_frameDescriptorSet);
+	m_modelUniforms = std::make_unique<UniformBufferBlock<ModelUniforms>>(this, 0);
+	m_modelUniforms->addToSet(m_modelDescriptorSet);
 }
 
 void VulkanEngine::createDescriptorPool() {
@@ -526,51 +561,11 @@ void VulkanEngine::createDescriptorPool() {
 	std::array poolSizes = {uniformPoolSize, samplerPoolSize};
 	vk::DescriptorPoolCreateInfo poolInfo = {
 		.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-		.maxSets = 1,
+		.maxSets = 64,
 		.poolSizeCount = static_cast<u32>(poolSizes.size()),
 		.pPoolSizes = poolSizes.data(),
 	};
 	m_descriptorPool = m_device.createDescriptorPool(poolInfo);
-}
-
-void VulkanEngine::createDescriptorSets() {
-	vk::DescriptorSetAllocateInfo allocInfo = {
-		.descriptorPool = m_descriptorPool,
-		.descriptorSetCount = 1,
-		.pSetLayouts = &*m_descriptorSetLayout
-	};
-	m_descriptorSet = std::move(m_device.allocateDescriptorSets(allocInfo).front());
-
-	vk::DescriptorBufferInfo bufferInfo = {
-		.buffer = m_uniformBuffer,
-		.offset = 0,
-		.range = sizeof(MatrixUniforms),
-	};
-	vk::DescriptorImageInfo imageInfo = {
-		.sampler = m_assetManager->getTexture("assets/house.glb2")->getSampler(),
-		.imageView = m_assetManager->getTexture("assets/house.glb2")->getImageView(),
-		.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
-	};
-
-	vk::WriteDescriptorSet uniformDescriptorWrite = {
-		.dstSet = m_descriptorSet,
-		.dstBinding = 0,
-		.dstArrayElement = 0,
-		.descriptorCount = 1,
-		.descriptorType = vk::DescriptorType::eUniformBuffer,
-		.pBufferInfo = &bufferInfo,
-	};
-	vk::WriteDescriptorSet samplerDescriptorWrite = {
-		.dstSet = m_descriptorSet,
-		.dstBinding = 1,
-		.dstArrayElement = 0,
-		.descriptorCount = 1,
-		.descriptorType = vk::DescriptorType::eCombinedImageSampler,
-		.pImageInfo = &imageInfo
-	};
-	std::array descriptorWrites = {uniformDescriptorWrite, samplerDescriptorWrite};
-	m_device.updateDescriptorSets(descriptorWrites, nullptr);
-
 }
 
 void VulkanEngine::createDepthResources() {
@@ -747,10 +742,13 @@ void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuf
 	commandBuffer.setViewport(0, { viewport });
 	commandBuffer.setScissor(0, { scissor });
 
-	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, *m_descriptorSet, nullptr);
+	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, {*m_frameDescriptorSet}, nullptr);
+	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 2, {*m_modelDescriptorSet}, nullptr);
 
-	for (const auto& model : m_assetManager->getModels()) {
-		model->mesh->draw(commandBuffer);
+	for (const Instance* instance : m_scene->getRenderable()) {
+		m_modelUniforms->setData({instance->getTransform()});
+		instance->material->use(commandBuffer, m_pipelineLayout);
+		instance->mesh->draw(commandBuffer);
 	}
 
 	m_debugWindow->draw(commandBuffer);
@@ -771,7 +769,7 @@ void VulkanEngine::copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize siz
 	endSingleCommand(commandBuffer);
 }
 
-void VulkanEngine::transitionImageLayout(vk::raii::Image &image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const {
+void VulkanEngine::transitionImageLayout(const vk::raii::Image &image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const {
 	vk::PipelineStageFlags srcStage;
 	vk::PipelineStageFlags dstStage;
 	vk::AccessFlags srcAccess;
@@ -816,7 +814,28 @@ void VulkanEngine::transitionImageLayout(vk::raii::Image &image, vk::ImageLayout
 	endSingleCommand(commandBuffer);
 }
 
-void VulkanEngine::copyBufferToImage(vk::raii::Buffer &buffer, vk::raii::Image &image, u32 width, u32 height) const {
+vk::raii::DescriptorSet VulkanEngine::createDescriptorSet(u32 set) const {
+	vk::DescriptorSetAllocateInfo allocInfo = {
+		.descriptorPool = m_descriptorPool,
+		.descriptorSetCount = 1,
+		.pSetLayouts = &*m_descriptorSetLayouts.at(set)
+	};
+	return std::move(m_device.allocateDescriptorSets(allocInfo).front());
+}
+
+vk::raii::DescriptorSet VulkanEngine::createFrameDescriptorSet() const {
+	return createDescriptorSet(0);
+}
+
+vk::raii::DescriptorSet VulkanEngine::createMaterialDescriptorSet() const {
+	return createDescriptorSet(1);
+}
+
+vk::raii::DescriptorSet VulkanEngine::createModelDescriptorSet() const {
+	return createDescriptorSet(2);
+}
+
+void VulkanEngine::copyBufferToImage(const vk::raii::Buffer &buffer, const vk::raii::Image &image, u32 width, u32 height) const {
 	vk::raii::CommandBuffer commandBuffer = beginSingleCommand();
 
 	vk::BufferImageCopy region = {
@@ -935,7 +954,7 @@ void VulkanEngine::endSingleCommand(const vk::raii::CommandBuffer &commandBuffer
 }
 
 void VulkanEngine::mainLoop() {
-	float prevTime = static_cast<float>(glfwGetTime());
+	auto prevTime = static_cast<float>(glfwGetTime());
 	while (!glfwWindowShouldClose(m_window)) {
 		InputManager::update();
 		glfwPollEvents();
@@ -948,11 +967,16 @@ void VulkanEngine::mainLoop() {
 	m_device.waitIdle();
 }
 
-void VulkanEngine::drawFrame() {
+void VulkanEngine::drawFrame() const {
 	// wait indefinitely
 	while (m_device.waitForFences(*m_inFlightFence, vk::True, std::numeric_limits<u64>::max()) == vk::Result::eTimeout) {}
 	m_device.resetFences(*m_inFlightFence);
-	updateUniformBuffer();
+
+	m_frameUniforms->setData({
+		.view = m_camera->getViewMatrix(),
+		.projection = m_camera->getProjectionMatrix(),
+	});
+
 	auto [result, imageIndex] = m_swapChain.acquireNextImage(std::numeric_limits<u64>::max(), *m_imageAvailableSemaphore, nullptr);
 	m_commandBuffer.reset();
 	recordCommandBuffer(m_commandBuffer, imageIndex);
@@ -981,18 +1005,7 @@ void VulkanEngine::drawFrame() {
 	if (presentResult != vk::Result::eSuccess) throw std::runtime_error("Error presenting frame");
 }
 
-void VulkanEngine::updateUniformBuffer() const {
-	MatrixUniforms ubo{
-		.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.0f)),
-		.view = m_camera->getViewMatrix(),
-		.projection = m_camera->getProjectionMatrix(),
-	};
-	memcpy(m_uniformBufferMapped, &ubo, sizeof(ubo));
-}
-
 void VulkanEngine::cleanup() const {
-	m_uniformBufferMemory.unmapMemory();
-
 	glfwDestroyWindow(m_window);
 	glfwTerminate();
 }
