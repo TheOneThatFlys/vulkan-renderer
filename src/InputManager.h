@@ -7,26 +7,31 @@
 
 #include "Common.h"
 
-#define INPUT_MANAGER_MAX_CODES 162
+constexpr u32 INPUT_MANAGER_MAX_CODES = 162;
 
-class InputManager {
+class InputManager final : public IUpdatable {
 public:
-    static void create(GLFWwindow* window);
-    /// Needs to be called before `glfwPollEvents()`
-    static void update();
+    static void setWindow(GLFWwindow* window);
     static void keyCallback(GLFWwindow*, int key, int, int action, int);
     static bool keyHeld(u32 key);
     static bool keyPressed(u32 key);
     static glm::vec2 mousePos();
     static glm::vec2 mouseMovement();
-private:
     static u32 packCode(u32 code);
     static u32 unpackCode(u32 code);
+    static InputManager* get();
 
-    static GLFWwindow* m_window;
-    static std::bitset<INPUT_MANAGER_MAX_CODES> m_heldKeys;
-    static std::bitset<INPUT_MANAGER_MAX_CODES> m_pressedKeysThisFrame;
-    static glm::vec2 m_currentMousePos;
-    static glm::vec2 m_lastMousePos;
-    static bool m_firstMouse;
+    /// Needs to be called before `glfwPollEvents()`
+    void update(float) override;
+private:
+    explicit InputManager() = default;
+
+    static InputManager s_instance;
+
+    GLFWwindow* m_window = nullptr;
+    std::bitset<INPUT_MANAGER_MAX_CODES> m_heldKeys;
+    std::bitset<INPUT_MANAGER_MAX_CODES> m_pressedKeysThisFrame;
+    glm::vec2 m_currentMousePos = glm::vec2(0.0f);
+    glm::vec2 m_lastMousePos = glm::vec2(-1.0f);
+    bool m_firstMouse = true;
 };

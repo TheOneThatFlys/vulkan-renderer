@@ -10,11 +10,9 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
 
 #include "Common.h"
 #include "CameraController.h"
-#include "Scene.h"
 
 constexpr u32 WINDOW_WIDTH = 1280;
 constexpr u32 WINDOW_HEIGHT = 720;
@@ -42,8 +40,7 @@ constexpr bool ENABLE_VALIDATION_LAYERS = true;
 class DebugWindow;
 class AssetManager;
 class Pipeline;
-template<typename T>
-class UniformBufferBlock;
+class Renderer3D;
 
 struct QueueFamilyIndices {
 	std::optional<u32> graphicsFamily;
@@ -52,15 +49,6 @@ struct QueueFamilyIndices {
 	bool isComplete() const {
 		return graphicsFamily.has_value() && presentFamily.has_value();
 	}
-};
-
-struct FrameUniforms {
-	glm::mat4 view;
-	glm::mat4 projection;
-};
-
-struct ModelUniforms {
-	glm::mat4 transform;
 };
 
 class VulkanEngine {
@@ -74,7 +62,6 @@ public:
 	const vk::raii::PhysicalDevice& getPhysicalDevice() const;
 	const vk::raii::DescriptorPool& getDescriptorPool() const;
 	const Pipeline* getPipeline() const;
-	Scene* getScene() const;
 
 	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
 	void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const;
@@ -86,6 +73,7 @@ public:
 private:
 	void initWindow();
 	void initVulkan();
+	void initECS();
 
 	void createInstance();
 	void createLogicalDevice();
@@ -99,7 +87,6 @@ private:
 	void createCommandBuffers();
 	void createSyncObjects();
 	void createQueryPool();
-	void createUniformBuffers();
 	void createDescriptorPool();
 	void createDepthResources();
 
@@ -126,7 +113,8 @@ private:
 	float m_deltaTime = 1.0f / 120.0f;
 
 	std::unique_ptr<CameraController> m_camera = nullptr;
-	std::unique_ptr<Scene> m_scene = nullptr;
+	Renderer3D* m_renderer = nullptr;
+	std::vector<IUpdatable*> m_updatables;
 
 	GLFWwindow* m_window = nullptr;
 
@@ -157,13 +145,7 @@ private:
 	vk::raii::Fence m_inFlightFence = nullptr;
 
 	vk::raii::QueryPool m_queryPool = nullptr;
-
-	std::unique_ptr<UniformBufferBlock<FrameUniforms>> m_frameUniforms = nullptr;
-	std::unique_ptr<UniformBufferBlock<ModelUniforms>> m_modelUniforms = nullptr;
-
 	vk::raii::DescriptorPool m_descriptorPool = nullptr;
-	vk::raii::DescriptorSet m_frameDescriptorSet = nullptr;
-	vk::raii::DescriptorSet m_modelDescriptorSet = nullptr;
 
 	vk::raii::Image m_depthImage = nullptr;
 	vk::raii::DeviceMemory m_depthImageMemory = nullptr;

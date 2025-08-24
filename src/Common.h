@@ -4,6 +4,9 @@
 #include <array>
 #include <fstream>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/string_cast.hpp>
+
 #include "Logger.h"
 
 using u8 = std::uint8_t;
@@ -22,6 +25,8 @@ struct FrameTimeInfo {
     double frameTime = 0;
     // time for each frame to be drawn in milliseconds
     double gpuTime = 0;
+    // time for update processing (CPU side) in milliseconds
+    double cpuTime = 0;
 };
 
 struct VRAMUsageInfo {
@@ -69,3 +74,9 @@ inline std::vector<char> readFile(const std::string& filename) {
     file.close();
     return buffer;
 }
+
+class IUpdatable {
+public:
+    virtual ~IUpdatable() = default;
+    virtual void update(float deltaTime) = 0;
+};

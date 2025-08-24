@@ -26,13 +26,14 @@ namespace ECS {
     };
     // Stores components of type T in a densely packed array
     template<typename T>
-    class ComponentArray : IComponentArray {
+    class ComponentArray : public IComponentArray {
     public:
         void addComponent(Entity entity, T component) {
             assert(!m_entityToIndex.contains(entity));
             u32 index = m_last;
             m_indexToEntity[index] = entity;
             m_entityToIndex[entity] = index;
+            m_components.at(index) = component;
             ++m_last;
         }
 
@@ -81,16 +82,16 @@ namespace ECS {
             assert(!m_componentIDs.contains(typeName));
             ComponentID id = m_componentCounter++;
             m_componentIDs[typeName] = id;
-            m_componentArrays[id] = std::make_unique<ComponentArray<T>>();
+            m_componentArrays.insert({id, std::make_unique<ComponentArray<T>>()});
         }
 
         template<typename T>
-        ComponentID getComponentID() const {
+        ComponentID getComponentID() {
             return m_componentIDs.at(typeid(T).name());
         }
 
         template<typename T>
-        T& getComponent(Entity entity) const {
+        T& getComponent(Entity entity) {
             return getComponentArray<T>()->getData(entity);
         }
 
@@ -113,7 +114,7 @@ namespace ECS {
     private:
         template<typename T>
         ComponentArray<T>* getComponentArray() {
-            return static_cast<ComponentArray<T>*>(m_componentArrays.at(getComponentID<T>()));
+            return static_cast<ComponentArray<T>*>(m_componentArrays.at(getComponentID<T>()).get());
         }
 
         std::unordered_map<const char*, ComponentID> m_componentIDs;
@@ -123,28 +124,29 @@ namespace ECS {
 
     class System {
     public:
-        std::set<Entity> entities;
+        std::set<Entity> m_entities;
+        virtual ~System() = default;
     };
 
     class SystemManager {
     public:
-        template<typename T>
-        T* registerSystem() {
+        template<typename T, typename... Args>
+        T* registerSystem(Args&&... args) {
             const char* key = typeid(T).name();
             assert(!m_systems.contains(key));
-            m_systems[key] = std::make_unique<T>();
-            return m_systems.at(key).get();
+            m_systems.insert({key, std::make_unique<T>(args...)});
+            return static_cast<T*>(m_systems.at(key).get());
         }
 
         template<typename T>
         void setSignature(Signature signature) {
             const char* type = typeid(T).name();
-            m_signatures[type] = signature;
+            m_signatures.insert({type, signature});
         }
 
         void entityDestroyed(Entity entity) {
             for (const auto& system : m_systems | std::views::values) {
-                system->entities.erase(entity);
+                system->m_entities.erase(entity);
             }
         }
 
@@ -152,10 +154,10 @@ namespace ECS {
             for (const auto& [type, system] : m_systems) {
                 const Signature& systemSignature = m_signatures[type];
                 if ((systemSignature & entitySignature) == systemSignature) {
-                    system->entities.insert(entity);
+                    system->m_entities.insert(entity);
                 }
                 else {
-                    system->entities.erase(entity);
+                    system->m_entities.erase(entity);
                 }
             }
         }
@@ -185,19 +187,19 @@ namespace ECS {
 
         void destroyEntity(Entity entity) {
             assert(entity < MAX_ENTITIES);
-            m_signatures[entity].reset();
+            m_signatures.at(entity).reset();
             m_availableIds.push(entity);
             --m_entitiesCount;
         }
 
         void setSignature(Entity entity, Signature signature) {
             assert(entity < MAX_ENTITIES);
-            m_signatures[entity] = signature;
+            m_signatures.at(entity) = signature;
         }
 
         Signature getSignature(Entity entity) {
             assert(entity < MAX_ENTITIES);
-            return m_signatures[entity];
+            return m_signatures.at(entity);
         }
     private:
 
@@ -214,6 +216,12 @@ namespace ECS {
         g_entityManager = std::make_unique<EntityManager>();
         g_systemManager = std::make_unique<SystemManager>();
         g_componentManager = std::make_unique<ComponentManager>();
+    }
+
+    inline void destroy() {
+        g_entityManager = nullptr;
+        g_systemManager = nullptr;
+        g_componentManager = nullptr;
     }
 
     inline Entity createEntity() {
@@ -255,18 +263,30 @@ namespace ECS {
     }
 
     template<typename T>
+    bool hasComponent(Entity entity) {
+        return g_entityManager->getSignature(entity).test(g_componentManager->getComponentID<T>());
+    }
+
+    template<typename T>
     ComponentID getComponentID() {
         return g_componentManager->getComponentID<T>();
     }
 
-    template<typename T>
-    T* registerSystem() {
-        return g_systemManager->registerSystem<T>();
+    template<typename T, typename... Args>
+    T* registerSystem(Args&&... args) {
+        return g_systemManager->registerSystem<T>(std::forward<Args>(args)...);
     }
 
     template<typename T>
     void setSystemSignature(Signature signature) {
         g_systemManager->setSignature<T>(signature);
+    }
+
+    template<typename... Ts>
+    Signature createSignature() {
+        Signature signature;
+        (signature.set(getComponentID<Ts>()), ...);
+        return signature;
     }
 
 }

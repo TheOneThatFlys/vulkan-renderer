@@ -10,6 +10,8 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/string_cast.hpp>
 
+#include "Components.h"
+#include "ECS.h"
 #include "VulkanEngine.h"
 
 AssetManager::AssetManager(VulkanEngine* engine) : m_engine(engine) {
@@ -44,7 +46,7 @@ void AssetManager::load(const char* root) {
     Logger::info(std::format("Loaded assets in {} ms", duration.count()));
 }
 
-std::unique_ptr<Scene> AssetManager::loadGLB(const std::string& path) {
+void AssetManager::loadGLB(const std::string& path) {
     const auto startTime = std::chrono::high_resolution_clock::now();
     tinygltf::Model ctx;
     std::string error, warning;
@@ -90,49 +92,52 @@ std::unique_ptr<Scene> AssetManager::loadGLB(const std::string& path) {
     if (scene.nodes.empty())
         Logger::warn("Loaded scene contained no nodes");
 
-    auto root = std::make_unique<Scene>();
-    std::stack<std::pair<i32, Node*>> nodesToVisit;
+    auto root = ECS::createEntity();
+    ECS::addComponent<Transform>(root, {});
+    std::stack<std::tuple<i32, u32, ECS::Entity>> nodesToVisit;
     for (i32 nodeID : ctx.scenes[0].nodes) {
-        nodesToVisit.emplace(nodeID, root.get());
+        nodesToVisit.emplace(nodeID, 0, root);
     }
+    u32 i = 0;
     while (!nodesToVisit.empty()) {
-        auto [nodeID, parent] = nodesToVisit.top();
+        ++i;
+        auto [nodeID, level, parent] = nodesToVisit.top();
         nodesToVisit.pop();
         const tinygltf::Node& node = ctx.nodes[nodeID];
 
-        if (node.mesh == -1) {
-            parent->addChild<Node>();
-        }
-        else {
-            parent->addChild<Instance>(meshes[node.mesh], materials[ctx.meshes[node.mesh].primitives[0].material]);
+        // create entity
+        ECS::Entity entity = ECS::createEntity();
+        // add model if it exists
+        if (node.mesh != -1) {
+            ECS::addComponent<Model3D>(entity, {meshes[node.mesh], materials[ctx.meshes[node.mesh].primitives[0].material]});
         }
 
-        Node* pNode = parent->getLastChild();
+        Transform transform;
         // transform components are already specified
         if (!node.translation.empty()) {
-            pNode->setPosition(glm::vec3(static_cast<float>(node.translation[0]), static_cast<float>(node.translation[1]), static_cast<float>(node.translation[2])));
+            transform.position = glm::vec3(static_cast<float>(node.translation[0]), static_cast<float>(node.translation[1]), static_cast<float>(node.translation[2]));
         }
         if (!node.rotation.empty()) {
-            pNode->setRotation(glm::quat(static_cast<float>(node.rotation[3]), static_cast<float>(node.rotation[0]), static_cast<float>(node.rotation[1]), static_cast<float>(node.rotation[2])));
+            transform.rotation = glm::quat(static_cast<float>(node.rotation[3]), static_cast<float>(node.rotation[0]), static_cast<float>(node.rotation[1]), static_cast<float>(node.rotation[2]));
         }
         if (!node.scale.empty()) {
-            pNode->setScale(glm::vec3(static_cast<float>(node.scale[0]), static_cast<float>(node.scale[1]), static_cast<float>(node.scale[2])));
+            transform.scale = glm::vec3(static_cast<float>(node.scale[0]), static_cast<float>(node.scale[1]), static_cast<float>(node.scale[2]));
         }
         // transform components given as a matrix
         if (!node.matrix.empty()) {
             Logger::warn("Matrix transform specifiers are not supported yet");
         }
 
+        ECS::addComponent<Transform>(entity, transform);
+        ECS::addComponent<HierarchyComponent>(entity, {parent});
         for (i32 child : node.children) {
-            nodesToVisit.emplace(child, pNode);
+            nodesToVisit.emplace(child, level + 1, entity);
         }
     }
 
     const auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
     Logger::info(std::format("Loaded {} in {} ms", path, duration.count()));
-
-    return std::move(root);
 }
 
 std::unique_ptr<Mesh> AssetManager::loadMesh(const tinygltf::Model& ctx, const tinygltf::Mesh &mesh) {

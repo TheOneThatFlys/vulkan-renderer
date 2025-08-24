@@ -66,13 +66,6 @@ add_executable (VulkanRenderer
         src/Texture.h
         src/Material.cpp
         src/Material.h
-        src/Node.cpp
-        src/Node.h
-        src/Scene.cpp
-        src/Scene.h
-        src/Instance.cpp
-        src/Instance.h
-        src/NodeType.h
         src/UniformBufferBlock.cpp
         src/UniformBufferBlock.h
         src/ECS.h
@@ -81,6 +74,8 @@ add_executable (VulkanRenderer
         src/Renderer3D.h
         src/Pipeline.cpp
         src/Pipeline.h
+        src/TransformSystem.cpp
+        src/TransformSystem.h
 )
 
 target_link_libraries(VulkanRenderer PRIVATE glfw)

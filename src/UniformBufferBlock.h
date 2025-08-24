@@ -14,8 +14,7 @@ public:
 	UniformBufferBlock(const VulkanEngine* engine, u32 binding);
 	~UniformBufferBlock();
 	void addToSet(const vk::raii::DescriptorSet& descriptorSet) const;
-	void setData(T& data);
-	void setData(T&& data);
+	void setData(const T& data);
 
 private:
 	vk::raii::Buffer m_buffer = nullptr;
@@ -58,12 +57,7 @@ void UniformBufferBlock<T>::addToSet(const vk::raii::DescriptorSet& descriptorSe
 }
 
 template<typename T>
-void UniformBufferBlock<T>::setData(T& data) {
+void UniformBufferBlock<T>::setData(const T& data) {
 	std::memcpy(m_data, &data, sizeof(T));
-}
-
-template<typename T>
-void UniformBufferBlock<T>::setData(T&& data) {
-	this->setData(data);
 }
 

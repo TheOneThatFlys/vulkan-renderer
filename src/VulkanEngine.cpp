@@ -15,8 +15,10 @@
 #include "InputManager.h"
 #include "DebugWindow.h"
 #include "AssetManager.h"
+#include "Components.h"
 #include "Pipeline.h"
-#include "UniformBufferBlock.h"
+#include "Renderer3D.h"
+#include "TransformSystem.h"
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
@@ -50,13 +52,7 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(
 void VulkanEngine::run() {
 	initWindow();
 	initVulkan();
-	ECS::init();
-	m_camera = std::make_unique<CameraController>(m_window);
-	m_debugWindow = std::make_unique<DebugWindow>(this, m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue, m_renderPass);
-	m_assetManager = std::make_unique<AssetManager>(this);
-	m_assetManager->load("assets");
-	m_scene = m_assetManager->loadGLB("assets/house.glb");
-	InputManager::create(m_window);
+	initECS();
 	mainLoop();
 	cleanup();
 }
@@ -113,12 +109,8 @@ const vk::raii::DescriptorPool & VulkanEngine::getDescriptorPool() const {
 	return m_descriptorPool;
 }
 
-const Pipeline * VulkanEngine::getPipeline() const {
+const Pipeline* VulkanEngine::getPipeline() const {
 	return m_pipeline.get();
-}
-
-Scene * VulkanEngine::getScene() const {
-	return m_scene.get();
 }
 
 void VulkanEngine::initWindow() {
@@ -149,8 +141,29 @@ void VulkanEngine::initVulkan() {
 	createDepthResources();
 	createFramebuffers();
 	createDescriptorPool();
-	createUniformBuffers();
 	createSyncObjects();
+}
+
+void VulkanEngine::initECS() {
+	ECS::init();
+	m_camera = std::make_unique<CameraController>(m_window);
+	m_debugWindow = std::make_unique<DebugWindow>(this, m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue, m_renderPass);
+	m_assetManager = std::make_unique<AssetManager>(this);
+
+	InputManager::setWindow(m_window);
+	m_updatables.push_back(InputManager::get());
+
+	ECS::registerComponent<Transform>();
+	ECS::registerComponent<Model3D>();
+	ECS::registerComponent<HierarchyComponent>();
+	m_renderer = ECS::registerSystem<Renderer3D>(this, m_pipeline.get());
+	ECS::setSystemSignature<Renderer3D>(ECS::createSignature<Transform, Model3D>());
+
+	m_updatables.push_back(ECS::registerSystem<TransformSystem>());
+	ECS::setSystemSignature<TransformSystem>(ECS::createSignature<Transform>());
+
+	m_assetManager->load("assets");
+	m_assetManager->loadGLB("assets/house.glb");
 }
 
 void VulkanEngine::createInstance() {
@@ -397,19 +410,10 @@ void VulkanEngine::createQueryPool() {
 	m_queryPool = vk::raii::QueryPool(m_device, createInfo);
 }
 
-void VulkanEngine::createUniformBuffers() {
-	m_frameDescriptorSet = m_pipeline->createDescriptorSet(FRAME_SET_NUMBER);
-	m_modelDescriptorSet = m_pipeline->createDescriptorSet(MODEL_SET_NUMBER);
-	m_frameUniforms = std::make_unique<UniformBufferBlock<FrameUniforms>>(this, 0);
-	m_frameUniforms->addToSet(m_frameDescriptorSet);
-	m_modelUniforms = std::make_unique<UniformBufferBlock<ModelUniforms>>(this, 0);
-	m_modelUniforms->addToSet(m_modelDescriptorSet);
-}
-
 void VulkanEngine::createDescriptorPool() {
 	vk::DescriptorPoolSize uniformPoolSize = {
 		.type = vk::DescriptorType::eUniformBuffer,
-		.descriptorCount = 2,
+		.descriptorCount = 1,
 	};
 	vk::DescriptorPoolSize samplerPoolSize = {
 		.type = vk::DescriptorType::eCombinedImageSampler,
@@ -591,14 +595,7 @@ void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuf
 	commandBuffer.setViewport(0, { viewport });
 	commandBuffer.setScissor(0, { scissor });
 
-	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline->getLayout(), FRAME_SET_NUMBER, {*m_frameDescriptorSet}, nullptr);
-	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline->getLayout(), MODEL_SET_NUMBER, {*m_modelDescriptorSet}, nullptr);
-
-	for (const Instance* instance : m_scene->getRenderable()) {
-		m_modelUniforms->setData({instance->getTransform()});
-		instance->material->use(commandBuffer, m_pipeline->getLayout());
-		instance->mesh->draw(commandBuffer);
-	}
+	m_renderer->render(commandBuffer, m_camera.get());
 
 	m_debugWindow->draw(commandBuffer);
 
@@ -784,7 +781,9 @@ void VulkanEngine::endSingleCommand(const vk::raii::CommandBuffer &commandBuffer
 void VulkanEngine::mainLoop() {
 	auto prevTime = static_cast<float>(glfwGetTime());
 	while (!glfwWindowShouldClose(m_window)) {
-		InputManager::update();
+		for (const auto x : m_updatables) {
+			x->update(m_deltaTime);
+		}
 		glfwPollEvents();
 		drawFrame();
 		const auto nowTime = static_cast<float>(glfwGetTime());
@@ -799,11 +798,6 @@ void VulkanEngine::drawFrame() const {
 	// wait indefinitely
 	while (m_device.waitForFences(*m_inFlightFence, vk::True, std::numeric_limits<u64>::max()) == vk::Result::eTimeout) {}
 	m_device.resetFences(*m_inFlightFence);
-
-	m_frameUniforms->setData({
-		.view = m_camera->getViewMatrix(),
-		.projection = m_camera->getProjectionMatrix(),
-	});
 
 	auto [result, imageIndex] = m_swapChain.acquireNextImage(std::numeric_limits<u64>::max(), *m_imageAvailableSemaphore, nullptr);
 	m_commandBuffer.reset();
@@ -836,6 +830,7 @@ void VulkanEngine::drawFrame() const {
 void VulkanEngine::cleanup() const {
 	glfwDestroyWindow(m_window);
 	glfwTerminate();
+	ECS::destroy();
 }
 
 int main()

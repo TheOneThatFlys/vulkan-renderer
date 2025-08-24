@@ -9,7 +9,6 @@
 #include "Mesh.h"
 #include "Texture.h"
 #include "Material.h"
-#include "Scene.h"
 
 class VulkanEngine;
 
@@ -17,7 +16,7 @@ class AssetManager {
 public:
     explicit AssetManager(VulkanEngine* engine);
     void load(const char* root);
-    std::unique_ptr<Scene> loadGLB(const std::string& path);
+    void loadGLB(const std::string& path);
 private:
     std::unique_ptr<Mesh> loadMesh(const tinygltf::Model &ctx, const tinygltf::Mesh &mesh);
     void loadImage(std::string path);

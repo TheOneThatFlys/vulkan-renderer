@@ -22,5 +22,5 @@ Material::Material(const VulkanEngine* engine, const Texture *base) : m_base(bas
 }
 
 void Material::use(const vk::raii::CommandBuffer &commandBuffer, const vk::raii::PipelineLayout& layout) const {
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, 1, *m_descriptorSet, nullptr);
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, MATERIAL_SET_NUMBER, *m_descriptorSet, nullptr);
 }
