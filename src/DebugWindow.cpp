@@ -119,7 +119,7 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
                     // rotation
                     glm::quat rotation = node->getRotation();
                     float values2[] = {rotation.x, rotation.y, rotation.z, rotation.w};
-                    if (ImGui::DragFloat4("Rotation", values2, 0.1f))
+                    if (ImGui::DragFloat4("Rotation", values2, 0.01f, -1.0f, 1.0f))
                         node->setRotation(glm::quat(values2[3], values2[0], values2[1], values2[2]));
                     // scale
                     glm::vec3 scale = node->getScale();

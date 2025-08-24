@@ -41,6 +41,7 @@ constexpr bool ENABLE_VALIDATION_LAYERS = true;
 // Forward decl.
 class DebugWindow;
 class AssetManager;
+class Pipeline;
 template<typename T>
 class UniformBufferBlock;
 
@@ -71,6 +72,8 @@ public:
 	VRAMUsageInfo getVramUsage() const;
 	const vk::raii::Device& getDevice() const;
 	const vk::raii::PhysicalDevice& getPhysicalDevice() const;
+	const vk::raii::DescriptorPool& getDescriptorPool() const;
+	const Pipeline* getPipeline() const;
 	Scene* getScene() const;
 
 	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
@@ -79,10 +82,6 @@ public:
 	vk::raii::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags) const;
 	void copyBufferToImage(const vk::raii::Buffer& buffer, const vk::raii::Image& image, u32 width, u32 height) const;
 	void transitionImageLayout(const vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
-	vk::raii::DescriptorSet createDescriptorSet(u32 set) const;
-	vk::raii::DescriptorSet createFrameDescriptorSet() const;
-	vk::raii::DescriptorSet createMaterialDescriptorSet() const;
-	vk::raii::DescriptorSet createModelDescriptorSet() const;
 
 private:
 	void initWindow();
@@ -94,18 +93,15 @@ private:
 	void createImageViews();
 	void createFramebuffers();
 	void createRenderPass();
-	void createSwapChain();
 	void createGraphicsPipeline();
+	void createSwapChain();
 	void createCommandPool();
 	void createCommandBuffers();
 	void createSyncObjects();
 	void createQueryPool();
-	void createDescriptorSetLayouts();
 	void createUniformBuffers();
 	void createDescriptorPool();
 	void createDepthResources();
-
-	vk::raii::ShaderModule createShaderModule(const std::vector<char>& code) const;
 
 	static bool checkValidationLayerSupport();
 	static std::vector<const char*> getRequiredExtensions();
@@ -150,9 +146,7 @@ private:
 	std::vector<vk::raii::Framebuffer> m_framebuffers;
 	vk::Extent2D m_swapExtent;
 
-	std::vector<vk::raii::DescriptorSetLayout> m_descriptorSetLayouts;
-	vk::raii::PipelineLayout m_pipelineLayout = nullptr;
-	vk::raii::Pipeline m_pipeline = nullptr;
+	std::unique_ptr<Pipeline> m_pipeline = nullptr;
 	vk::raii::RenderPass m_renderPass = nullptr;
 
 	vk::raii::CommandPool m_commandPool = nullptr;

@@ -1,9 +1,10 @@
 #include "Material.h"
 
+#include "Pipeline.h"
 #include "VulkanEngine.h"
 
 Material::Material(const VulkanEngine* engine, const Texture *base) : m_base(base) {
-    m_descriptorSet = engine->createMaterialDescriptorSet();
+    m_descriptorSet = engine->getPipeline()->createDescriptorSet(MATERIAL_SET_NUMBER);
     vk::DescriptorImageInfo imageInfo = {
         .sampler = m_base->getSampler(),
         .imageView = m_base->getImageView(),

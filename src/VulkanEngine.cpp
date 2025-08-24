@@ -5,17 +5,17 @@
 #include <memory>
 #include <set>
 #include <algorithm>
-#include <fstream>
 #include <string>
+#include <iostream>
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-#include <iostream>
-#include <glm/ext/matrix_transform.hpp>
 
+#include "ECS.h"
 #include "InputManager.h"
 #include "DebugWindow.h"
 #include "AssetManager.h"
+#include "Pipeline.h"
 #include "UniformBufferBlock.h"
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
@@ -47,21 +47,10 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(
 	return vk::False;
 }
 
-static std::vector<char> readFile(const std::string& filename) {
-	std::ifstream file(filename, std::ios::ate | std::ios::binary);
-	if (!file.is_open()) {
-		throw std::runtime_error("Failed to open file: " + filename);
-	}
-	std::vector<char> buffer(file.tellg());
-	file.seekg(0);
-	file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-	file.close();
-	return buffer;
-}
-
 void VulkanEngine::run() {
 	initWindow();
 	initVulkan();
+	ECS::init();
 	m_camera = std::make_unique<CameraController>(m_window);
 	m_debugWindow = std::make_unique<DebugWindow>(this, m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue, m_renderPass);
 	m_assetManager = std::make_unique<AssetManager>(this);
@@ -120,6 +109,14 @@ const vk::raii::PhysicalDevice & VulkanEngine::getPhysicalDevice() const {
 	return m_physicalDevice;
 }
 
+const vk::raii::DescriptorPool & VulkanEngine::getDescriptorPool() const {
+	return m_descriptorPool;
+}
+
+const Pipeline * VulkanEngine::getPipeline() const {
+	return m_pipeline.get();
+}
+
 Scene * VulkanEngine::getScene() const {
 	return m_scene.get();
 }
@@ -145,7 +142,6 @@ void VulkanEngine::initVulkan() {
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
-	createDescriptorSetLayouts();
 	createGraphicsPipeline();
 	createCommandPool();
 	createCommandBuffers();
@@ -309,6 +305,18 @@ void VulkanEngine::createRenderPass() {
 
 }
 
+void VulkanEngine::createGraphicsPipeline() {
+	m_pipeline = Pipeline::Builder(this)
+		.addShaderStage("shaders/shader.vert.spv")
+		.addShaderStage("shaders/shader.frag.spv")
+		.attachRenderPass(m_renderPass)
+		.setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
+		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex)
+		.addBinding(1, 0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment)
+		.addBinding(2, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex)
+		.create();
+}
+
 void VulkanEngine::createSwapChain() {
 	vk::SurfaceCapabilitiesKHR capabilities = m_physicalDevice.getSurfaceCapabilitiesKHR(m_surface);
 	m_swapExtent = chooseExtent(capabilities);
@@ -344,112 +352,6 @@ void VulkanEngine::createSwapChain() {
 	}
 
 	m_swapChain = vk::raii::SwapchainKHR(m_device, createInfo);
-}
-
-void VulkanEngine::createGraphicsPipeline() {
-	vk::raii::ShaderModule vertShader = createShaderModule(readFile("shaders/shader.vert.spv"));
-	vk::raii::ShaderModule fragShader = createShaderModule(readFile("shaders/shader.frag.spv"));
-
-	vk::PipelineShaderStageCreateInfo vertShaderStageInfo = {
-		.stage = vk::ShaderStageFlagBits::eVertex,
-		.module = vertShader,
-		.pName = "main"
-	};
-
-	vk::PipelineShaderStageCreateInfo fragShaderStageInfo = {
-		.stage = vk::ShaderStageFlagBits::eFragment,
-		.module = fragShader,
-		.pName = "main"
-	};
-
-	vk::PipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
-
-	auto bindingDescription = Vertex::getBindingDescription();
-	auto attributeDescriptions = Vertex::getAttributeDescriptions();
-	vk::PipelineVertexInputStateCreateInfo vertexInputInfo = {
-		.vertexBindingDescriptionCount = 1,
-		.pVertexBindingDescriptions = &bindingDescription,
-		.vertexAttributeDescriptionCount = static_cast<u32>(attributeDescriptions.size()),
-		.pVertexAttributeDescriptions = attributeDescriptions.data()
-	};
-
-	vk::PipelineInputAssemblyStateCreateInfo inputAssembly = {
-		.topology = vk::PrimitiveTopology::eTriangleList
-	};
-
-	std::vector dynamicStates = { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
-	vk::PipelineDynamicStateCreateInfo dynamicState{
-		.dynamicStateCount = static_cast<u32>(dynamicStates.size()),
-		.pDynamicStates = dynamicStates.data()
-	};
-
-	vk::PipelineViewportStateCreateInfo viewportState = {
-		.viewportCount = 1,
-		.scissorCount = 1,
-	};
-
-	vk::PipelineRasterizationStateCreateInfo rasterizer = {
-		.depthClampEnable = vk::False,
-		.rasterizerDiscardEnable = vk::False,
-		.polygonMode = vk::PolygonMode::eFill,
-		.cullMode = vk::CullModeFlagBits::eBack,
-		.frontFace = vk::FrontFace::eCounterClockwise,
-		.depthBiasEnable = vk::False,
-		.lineWidth = 1.0f,
-	};
-
-	vk::PipelineMultisampleStateCreateInfo multisampling = {
-		.rasterizationSamples = vk::SampleCountFlagBits::e1,
-		.sampleShadingEnable = vk::False,
-	};
-
-	vk::PipelineDepthStencilStateCreateInfo depthStencil = {
-		.depthTestEnable = vk::True,
-		.depthWriteEnable = vk::True,
-		.depthCompareOp = vk::CompareOp::eLess,
-		.depthBoundsTestEnable = vk::False,
-		.stencilTestEnable = vk::False
-	};
-
-	vk::PipelineColorBlendAttachmentState colorBlendAttachment = {
-		.blendEnable = vk::False,
-		.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-	};
-
-	vk::PipelineColorBlendStateCreateInfo colorBlending = {
-		.logicOpEnable = vk::False,
-		.attachmentCount = 1,
-		.pAttachments = &colorBlendAttachment
-	};
-
-	std::vector<vk::DescriptorSetLayout> layouts;
-	layouts.reserve(m_descriptorSetLayouts.size());
-	for (const auto& layout : m_descriptorSetLayouts) {
-		layouts.push_back(*layout);
-	}
-	vk::PipelineLayoutCreateInfo pipelineLayoutInfo = {
-		.setLayoutCount = static_cast<u32>(layouts.size()),
-		.pSetLayouts = layouts.data(), // evil pointer stuff
-	};
-	m_pipelineLayout = vk::raii::PipelineLayout(m_device, pipelineLayoutInfo);
-
-	vk::GraphicsPipelineCreateInfo pipelineInfo = {
-		.stageCount = 2,
-		.pStages = shaderStages,
-		.pVertexInputState = &vertexInputInfo,
-		.pInputAssemblyState = &inputAssembly,
-		.pViewportState = &viewportState,
-		.pRasterizationState = &rasterizer,
-		.pMultisampleState = &multisampling,
-		.pDepthStencilState = &depthStencil,
-		.pColorBlendState = &colorBlending,
-		.pDynamicState = &dynamicState,
-		.layout = m_pipelineLayout,
-		.renderPass = m_renderPass,
-		.subpass = 0
-	};
-
-	m_pipeline = vk::raii::Pipeline(m_device, nullptr, pipelineInfo);
 }
 
 void VulkanEngine::createCommandPool() {
@@ -495,54 +397,9 @@ void VulkanEngine::createQueryPool() {
 	m_queryPool = vk::raii::QueryPool(m_device, createInfo);
 }
 
-void VulkanEngine::createDescriptorSetLayouts() {
-	// frame
-	vk::DescriptorSetLayoutBinding uniformLayoutBinding = {
-		.binding = 0,
-		.descriptorType = vk::DescriptorType::eUniformBuffer,
-		.descriptorCount = 1,
-		.stageFlags = vk::ShaderStageFlagBits::eVertex
-	};
-	vk::DescriptorSetLayoutCreateInfo framelayoutInfo = {
-		.bindingCount = 1,
-		.pBindings = &uniformLayoutBinding
-	};
-	m_descriptorSetLayouts.push_back(m_device.createDescriptorSetLayout(framelayoutInfo));
-
-	// material
-	vk::DescriptorSetLayoutBinding materialBinding = {
-		.binding = 0,
-		.descriptorType = vk::DescriptorType::eCombinedImageSampler,
-		.descriptorCount = 1,
-		.stageFlags = vk::ShaderStageFlagBits::eFragment
-	};
-	vk::DescriptorSetLayoutCreateInfo materialLayoutInfo = {
-		.bindingCount = 1,
-		.pBindings = &materialBinding
-	};
-	m_descriptorSetLayouts.push_back(m_device.createDescriptorSetLayout(materialLayoutInfo));
-
-	// model
-	vk::DescriptorSetLayoutBinding modelBinding = {
-		.binding = 0,
-		.descriptorType = vk::DescriptorType::eUniformBuffer,
-		.descriptorCount = 1,
-		.stageFlags = vk::ShaderStageFlagBits::eVertex
-	};
-	vk::DescriptorSetLayoutCreateInfo modelLayoutInfo = {
-		.bindingCount = 1,
-		.pBindings = &modelBinding
-	};
-	m_descriptorSetLayouts.push_back(m_device.createDescriptorSetLayout(modelLayoutInfo));
-}
-
 void VulkanEngine::createUniformBuffers() {
-	// vk::DeviceSize bufferSize = sizeof(FrameUniforms);
-	// std::tie(m_uniformBuffer, m_uniformBufferMemory) = createBuffer(bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
-	// m_uniformBufferMapped = m_uniformBufferMemory.mapMemory(0, bufferSize);
-
-	m_frameDescriptorSet = createFrameDescriptorSet();
-	m_modelDescriptorSet = createModelDescriptorSet();
+	m_frameDescriptorSet = m_pipeline->createDescriptorSet(FRAME_SET_NUMBER);
+	m_modelDescriptorSet = m_pipeline->createDescriptorSet(MODEL_SET_NUMBER);
 	m_frameUniforms = std::make_unique<UniformBufferBlock<FrameUniforms>>(this, 0);
 	m_frameUniforms->addToSet(m_frameDescriptorSet);
 	m_modelUniforms = std::make_unique<UniformBufferBlock<ModelUniforms>>(this, 0);
@@ -552,7 +409,7 @@ void VulkanEngine::createUniformBuffers() {
 void VulkanEngine::createDescriptorPool() {
 	vk::DescriptorPoolSize uniformPoolSize = {
 		.type = vk::DescriptorType::eUniformBuffer,
-		.descriptorCount = 1,
+		.descriptorCount = 2,
 	};
 	vk::DescriptorPoolSize samplerPoolSize = {
 		.type = vk::DescriptorType::eCombinedImageSampler,
@@ -579,14 +436,6 @@ void VulkanEngine::createDepthResources() {
 	);
 
 	m_depthImageView = createImageView(m_depthImage, vk::Format::eD32Sfloat, vk::ImageAspectFlagBits::eDepth);
-}
-
-vk::raii::ShaderModule VulkanEngine::createShaderModule(const std::vector<char>& code) const {
-	vk::ShaderModuleCreateInfo createInfo{
-		.codeSize = code.size() * sizeof(char),
-		.pCode = reinterpret_cast<const u32*>(code.data())
-	};
-	return vk::raii::ShaderModule(m_device, createInfo);
 }
 
 std::vector<const char*> VulkanEngine::getRequiredExtensions() {
@@ -726,7 +575,7 @@ void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuf
 		.pClearValues = clearValues.data(),
 	};
 	commandBuffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
-	commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
+	commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline->getPipeline());
 	vk::Viewport viewport = {
 		.x = 0.0f,
 		.y = 0.0f,
@@ -742,12 +591,12 @@ void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuf
 	commandBuffer.setViewport(0, { viewport });
 	commandBuffer.setScissor(0, { scissor });
 
-	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, {*m_frameDescriptorSet}, nullptr);
-	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 2, {*m_modelDescriptorSet}, nullptr);
+	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline->getLayout(), FRAME_SET_NUMBER, {*m_frameDescriptorSet}, nullptr);
+	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline->getLayout(), MODEL_SET_NUMBER, {*m_modelDescriptorSet}, nullptr);
 
 	for (const Instance* instance : m_scene->getRenderable()) {
 		m_modelUniforms->setData({instance->getTransform()});
-		instance->material->use(commandBuffer, m_pipelineLayout);
+		instance->material->use(commandBuffer, m_pipeline->getLayout());
 		instance->mesh->draw(commandBuffer);
 	}
 
@@ -812,27 +661,6 @@ void VulkanEngine::transitionImageLayout(const vk::raii::Image &image, vk::Image
 	commandBuffer.pipelineBarrier(srcStage, dstStage, {}, nullptr, nullptr, barrier);
 
 	endSingleCommand(commandBuffer);
-}
-
-vk::raii::DescriptorSet VulkanEngine::createDescriptorSet(u32 set) const {
-	vk::DescriptorSetAllocateInfo allocInfo = {
-		.descriptorPool = m_descriptorPool,
-		.descriptorSetCount = 1,
-		.pSetLayouts = &*m_descriptorSetLayouts.at(set)
-	};
-	return std::move(m_device.allocateDescriptorSets(allocInfo).front());
-}
-
-vk::raii::DescriptorSet VulkanEngine::createFrameDescriptorSet() const {
-	return createDescriptorSet(0);
-}
-
-vk::raii::DescriptorSet VulkanEngine::createMaterialDescriptorSet() const {
-	return createDescriptorSet(1);
-}
-
-vk::raii::DescriptorSet VulkanEngine::createModelDescriptorSet() const {
-	return createDescriptorSet(2);
 }
 
 void VulkanEngine::copyBufferToImage(const vk::raii::Buffer &buffer, const vk::raii::Image &image, u32 width, u32 height) const {

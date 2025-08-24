@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <array>
+#include <fstream>
 
 #include "Logger.h"
 
@@ -11,6 +12,10 @@ using u32 = std::uint32_t;
 using u64 = std::uint64_t;
 
 using i32 = std::int32_t;
+
+constexpr u32 FRAME_SET_NUMBER = 0;
+constexpr u32 MATERIAL_SET_NUMBER = 1;
+constexpr u32 MODEL_SET_NUMBER = 2;
 
 struct FrameTimeInfo {
     // time between each frame in milliseconds
@@ -51,4 +56,16 @@ inline std::string storageSizeToString(size_t bytes) {
         }
     }
     return std::format("{:.2f} {}", n, units[numDivisions]);
+}
+
+inline std::vector<char> readFile(const std::string& filename) {
+    std::ifstream file(filename, std::ios::ate | std::ios::binary);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open file: " + filename);
+    }
+    std::vector<char> buffer(file.tellg());
+    file.seekg(0);
+    file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    file.close();
+    return buffer;
 }

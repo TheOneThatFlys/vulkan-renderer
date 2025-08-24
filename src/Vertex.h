@@ -15,22 +15,22 @@ struct Vertex {
         };
     }
 
-    static std::array<vk::VertexInputAttributeDescription, 2> getAttributeDescriptions() {
-        std::array<vk::VertexInputAttributeDescription, 2> descriptions;
+    static std::vector<vk::VertexInputAttributeDescription> getAttributeDescriptions() {
+        std::vector<vk::VertexInputAttributeDescription> descriptions;
         // position
-        descriptions[0] = {
+        descriptions.push_back({
             .location = 0,
             .binding = 0,
             .format = vk::Format::eR32G32B32A32Sfloat,
             .offset = offsetof(Vertex, pos)
-        };
+        });
         // color
-        descriptions[1] = {
+        descriptions.push_back({
             .location = 1,
             .binding = 0,
             .format = vk::Format::eR32G32Sfloat,
-            .offset = offsetof(Vertex, uv),
-        };
+            .offset = offsetof(Vertex, uv)
+        });
         return descriptions;
     }
 };
