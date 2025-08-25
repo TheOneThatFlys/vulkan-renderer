@@ -28,3 +28,16 @@ struct HierarchyComponent {
 struct NamedComponent {
     std::string name;
 };
+
+struct ControlledCamera {
+    glm::vec3 position = glm::vec3(0.0f);
+    float speed = 2.0f;
+    float fov = glm::radians(45.0f);
+    float yaw = glm::radians(-90.0f);
+    float pitch = glm::radians(0.0f);
+
+    float sensitivity = 0.001f;
+    float aspect = 1.0f;
+
+    bool capturingMouse = true;
+};

@@ -7,11 +7,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <tiny_gltf.h>
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtx/string_cast.hpp>
 
 #include "Components.h"
-#include "ECS.h"
 #include "VulkanEngine.h"
 
 AssetManager::AssetManager(VulkanEngine* engine) : m_engine(engine) {
@@ -46,7 +43,8 @@ void AssetManager::load(const char* root) {
     Logger::info(std::format("Loaded assets in {} ms", duration.count()));
 }
 
-void AssetManager::loadGLB(const std::string& path) {
+// Load glb file and return the root entity
+ECS::Entity AssetManager::loadGLB(const std::string& path) {
     const auto startTime = std::chrono::high_resolution_clock::now();
     tinygltf::Model ctx;
     std::string error, warning;
@@ -142,6 +140,8 @@ void AssetManager::loadGLB(const std::string& path) {
     const auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
     Logger::info(std::format("Loaded {} in {} ms", path, duration.count()));
+
+    return root;
 }
 
 std::unique_ptr<Mesh> AssetManager::loadMesh(const tinygltf::Model& ctx, const tinygltf::Mesh &mesh) {

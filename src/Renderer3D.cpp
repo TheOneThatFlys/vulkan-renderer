@@ -12,9 +12,15 @@ Renderer3D::Renderer3D(VulkanEngine *engine, const Pipeline* pipeline)
 {
     m_frameUniforms.addToSet(m_frameDescriptor);
     m_modelUniforms.addToSet(m_modelDescriptor);
+
+    // create camera
+    m_camera = ECS::createEntity();
+    ECS::addComponent<ControlledCamera>(m_camera, {});
+    ECS::addComponent<NamedComponent>(m_camera, {"Camera"});
 }
 
-void Renderer3D::render(const vk::raii::CommandBuffer &commandBuffer, const CameraController* camera) {
+void Renderer3D::render(const vk::raii::CommandBuffer &commandBuffer) {
+    const auto camera = ECS::getSystem<ControlledCameraSystem>();
     m_frameUniforms.setData({
         .view = camera->getViewMatrix(),
         .projection = camera->getProjectionMatrix(),

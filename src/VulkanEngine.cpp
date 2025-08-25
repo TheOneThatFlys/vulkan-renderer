@@ -58,10 +58,6 @@ void VulkanEngine::run() {
 	cleanup();
 }
 
-CameraController* VulkanEngine::getCamera() const {
-	return m_camera.get();
-}
-
 DebugWindow* VulkanEngine::getDebugWindow() const {
 	return m_debugWindow.get();
 }
@@ -148,23 +144,26 @@ void VulkanEngine::initVulkan() {
 
 void VulkanEngine::initECS() {
 	ECS::init();
-	m_camera = std::make_unique<CameraController>(m_window);
 	m_debugWindow = std::make_unique<DebugWindow>(this, m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue, m_renderPass);
 	m_assetManager = std::make_unique<AssetManager>(this);
 
 	InputManager::setWindow(m_window);
-	m_updatables.push_back(InputManager::get());
 
 	ECS::registerComponent<Transform>();
 	ECS::registerComponent<Model3D>();
 	ECS::registerComponent<HierarchyComponent>();
 	ECS::registerComponent<NamedComponent>();
+	ECS::registerComponent<ControlledCamera>();
+
+	m_updatables.push_back(ECS::registerSystem<ControlledCameraSystem>(m_window));
+	ECS::setSystemSignature<ControlledCameraSystem>(ECS::createSignature<ControlledCamera>());
 
 	m_renderer = ECS::registerSystem<Renderer3D>(this, m_pipeline.get());
 	ECS::setSystemSignature<Renderer3D>(ECS::createSignature<Transform, Model3D>());
 
 	m_updatables.push_back(ECS::registerSystem<TransformSystem>());
 	ECS::setSystemSignature<TransformSystem>(ECS::createSignature<Transform>());
+
 
 	m_assetManager->load("assets");
 	m_assetManager->loadGLB("assets/house.glb");
@@ -178,9 +177,9 @@ void VulkanEngine::createInstance() {
 
 	constexpr vk::ApplicationInfo appInfo{
 		.pApplicationName = "Vulkan Renderer",
-		.applicationVersion = vk::makeVersion(1, 0, 0),
+		.applicationVersion = vk::makeApiVersion(1, 0, 0, 0),
 		.pEngineName = "No Engine",
-		.engineVersion = vk::makeVersion(1, 0, 0),
+		.engineVersion = vk::makeApiVersion(1, 0, 0, 0),
 		.apiVersion = vk::ApiVersion14
 	};
 
@@ -599,7 +598,7 @@ void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuf
 	commandBuffer.setViewport(0, { viewport });
 	commandBuffer.setScissor(0, { scissor });
 
-	m_renderer->render(commandBuffer, m_camera.get());
+	m_renderer->render(commandBuffer);
 
 	m_debugWindow->draw(commandBuffer);
 
@@ -785,17 +784,19 @@ void VulkanEngine::endSingleCommand(const vk::raii::CommandBuffer &commandBuffer
 void VulkanEngine::mainLoop() {
 	auto prevTime = static_cast<float>(glfwGetTime());
 	while (!glfwWindowShouldClose(m_window)) {
+		InputManager::update();
+		glfwPollEvents();
+		drawFrame();
+
 		const auto updateStartTime = std::chrono::high_resolution_clock::now();
 		for (const auto x : m_updatables) {
 			x->update(m_deltaTime);
 		}
-		m_cpuTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - updateStartTime).count();
+		const auto updateEndTime = std::chrono::high_resolution_clock::now();
+		m_cpuTime = static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(updateEndTime - updateStartTime).count());
 
-		glfwPollEvents();
-		drawFrame();
 		const auto nowTime = static_cast<float>(glfwGetTime());
 		m_deltaTime = nowTime - prevTime;
-		m_camera->update(m_deltaTime);
 		prevTime = nowTime;
 	}
 	m_device.waitIdle();

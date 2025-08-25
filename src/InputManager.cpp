@@ -9,7 +9,7 @@ void InputManager::setWindow(GLFWwindow *window) {
     glfwSetKeyCallback(window, keyCallback);
 }
 
-void InputManager::update(float) {
+void InputManager::update() {
     get()->m_pressedKeysThisFrame.reset();
     get()->m_lastMousePos = get()->m_currentMousePos;
     double x, y;

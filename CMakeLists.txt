@@ -47,8 +47,8 @@ target_sources(VulkanCppModule
 add_executable (VulkanRenderer
         src/VulkanEngine.cpp
         src/VulkanEngine.h
-        src/CameraController.cpp
-        src/CameraController.h
+        src/ControlledCameraSystem.cpp
+        src/ControlledCameraSystem.h
         src/InputManager.cpp
         src/InputManager.h
         src/Common.h

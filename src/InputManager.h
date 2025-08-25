@@ -9,7 +9,7 @@
 
 constexpr u32 INPUT_MANAGER_MAX_CODES = 162;
 
-class InputManager final : public IUpdatable {
+class InputManager {
 public:
     static void setWindow(GLFWwindow* window);
     static void keyCallback(GLFWwindow*, int key, int, int action, int);
@@ -22,7 +22,7 @@ public:
     static InputManager* get();
 
     /// Needs to be called before `glfwPollEvents()`
-    void update(float) override;
+    static void update();
 private:
     explicit InputManager() = default;
 

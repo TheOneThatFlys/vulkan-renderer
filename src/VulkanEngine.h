@@ -12,7 +12,7 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
 #include "Common.h"
-#include "CameraController.h"
+#include "ControlledCameraSystem.h"
 
 constexpr u32 WINDOW_WIDTH = 1280;
 constexpr u32 WINDOW_HEIGHT = 720;
@@ -54,7 +54,6 @@ struct QueueFamilyIndices {
 class VulkanEngine {
 public:
 	void run();
-	CameraController* getCamera() const;
 	DebugWindow* getDebugWindow() const;
 	FrameTimeInfo getFrameTimeInfo() const;
 	VRAMUsageInfo getVramUsage() const;
@@ -113,7 +112,6 @@ private:
 	float m_deltaTime = 1.0f / 120.0f;
 	double m_cpuTime = 0.0f;
 
-	std::unique_ptr<CameraController> m_camera = nullptr;
 	Renderer3D* m_renderer = nullptr;
 	std::vector<IUpdatable*> m_updatables;
 

@@ -9,6 +9,8 @@
 
 #include "Common.h"
 
+// shamelessly 'inspired' by https://austinmorlan.com/posts/entity_component_system
+
 namespace ECS {
 
     using Entity = u32;
@@ -86,7 +88,7 @@ namespace ECS {
         }
 
         template<typename T>
-        ComponentID getComponentID() {
+        ComponentID getComponentID() const {
             return m_componentIDs.at(typeid(T).name());
         }
 
@@ -105,7 +107,7 @@ namespace ECS {
             getComponentArray<T>()->removeComponent(entity);
         }
 
-        void entityDestroyed(Entity entity) {
+        void entityDestroyed(const Entity entity) {
             for (const auto& component : m_componentArrays | std::views::values) {
                 component->entityDestroyed(entity);
             }
@@ -135,7 +137,14 @@ namespace ECS {
             const char* key = typeid(T).name();
             assert(!m_systems.contains(key));
             m_systems.insert({key, std::make_unique<T>(args...)});
-            return static_cast<T*>(m_systems.at(key).get());
+            // return static_cast<T*>(m_systems.at(key).get());
+            return getSystem<T>();
+        }
+
+        template<typename T>
+        T* getSystem() {
+            const char* type = typeid(T).name();
+            return static_cast<T*>(m_systems.at(type).get());
         }
 
         template<typename T>
@@ -144,13 +153,13 @@ namespace ECS {
             m_signatures.insert({type, signature});
         }
 
-        void entityDestroyed(Entity entity) {
+        void entityDestroyed(const Entity entity) {
             for (const auto& system : m_systems | std::views::values) {
                 system->m_entities.erase(entity);
             }
         }
 
-        void entitySignatureChanged(Entity entity, Signature entitySignature) {
+        void entitySignatureChanged(const Entity entity, const Signature entitySignature) {
             for (const auto& [type, system] : m_systems) {
                 const Signature& systemSignature = m_signatures[type];
                 if ((systemSignature & entitySignature) == systemSignature) {
@@ -178,7 +187,7 @@ namespace ECS {
         Entity createEntity() {
             assert(m_entitiesCount < MAX_ENTITIES);
             // take an id from the queue
-            Entity id = m_availableIds.front();
+            const Entity id = m_availableIds.front();
             m_availableIds.pop();
             // increase number of entities alive
             ++m_entitiesCount;
@@ -197,7 +206,7 @@ namespace ECS {
             m_signatures.at(entity) = signature;
         }
 
-        Signature getSignature(Entity entity) {
+        Signature getSignature(Entity entity) const {
             assert(entity < MAX_ENTITIES);
             return m_signatures.at(entity);
         }
@@ -280,6 +289,11 @@ namespace ECS {
     template<typename T, typename... Args>
     T* registerSystem(Args&&... args) {
         return g_systemManager->registerSystem<T>(std::forward<Args>(args)...);
+    }
+
+    template<typename T>
+    T* getSystem() {
+        return g_systemManager->getSystem<T>();
     }
 
     template<typename T>

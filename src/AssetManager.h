@@ -6,6 +6,7 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include "Common.h"
+#include "ECS.h"
 #include "Mesh.h"
 #include "Texture.h"
 #include "Material.h"
@@ -16,7 +17,7 @@ class AssetManager {
 public:
     explicit AssetManager(VulkanEngine* engine);
     void load(const char* root);
-    void loadGLB(const std::string& path);
+    ECS::Entity loadGLB(const std::string& path);
 private:
     std::unique_ptr<Mesh> loadMesh(const tinygltf::Model &ctx, const tinygltf::Mesh &mesh);
     void loadImage(std::string path);

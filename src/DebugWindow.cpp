@@ -41,6 +41,23 @@ void SceneGraphDisplaySystem::drawNodeRecursive(ECS::Entity entity) {
             ImGui::TreePop();
         }
 
+        if (ECS::hasComponent<ControlledCamera>(entity)) {
+            if (ImGui::TreeNode("Camera")) {
+                ControlledCamera& camera = ECS::getComponent<ControlledCamera>(entity);
+                ImGui::DragFloat3("Position", glm::value_ptr(camera.position), 0.1f);
+                float yawPitchTemp[] = {camera.yaw, camera.pitch};
+                if (ImGui::DragFloat2("Yaw/Pitch", yawPitchTemp, 0.02f, glm::radians(-180.0f), glm::radians(180.0f), "%.3f", ImGuiSliderFlags_WrapAround)) {
+                    camera.yaw = yawPitchTemp[0];
+                    camera.pitch = std::ranges::clamp(yawPitchTemp[1], glm::radians(-89.9f), glm::radians(89.9f));
+                }
+                ImGui::SliderAngle("FOV", &camera.fov, 0.0001f, 180.0f);
+                ImGui::SliderFloat("Speed", &camera.speed, 0.0f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
+                ImGui::SliderFloat("Sensitivity", &camera.sensitivity, 0.0001f, 0.01f, "%.4f", ImGuiSliderFlags_NoRoundToFormat);
+
+                ImGui::TreePop();
+            }
+        }
+
         // Hierarchy
         if (ECS::hasComponent<HierarchyComponent>(entity)) {
             if (ImGui::TreeNode("Hierarchy")) {
@@ -121,6 +138,7 @@ DebugWindow::DebugWindow(VulkanEngine* engine, GLFWwindow *window, const vk::rai
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
+    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
@@ -200,20 +218,7 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
             ImGui::EndTabItem();
         }
 
-        if (ImGui::BeginTabItem("Scene")) {
-
-            ImGui::SeparatorText("Camera");
-            CameraController* camera = m_engine->getCamera();
-            ImGui::DragFloat3("Position", glm::value_ptr(camera->position), 0.1f);
-            float yawPitchTemp[] = {camera->getYaw(), camera->getPitch()};
-            if (ImGui::DragFloat2("Yaw/Pitch", yawPitchTemp, 0.02f, glm::radians(-180.0f), glm::radians(180.0f), "%.3f", ImGuiSliderFlags_WrapAround)) {
-                camera->setYaw(yawPitchTemp[0]);
-                camera->setPitch(std::ranges::clamp(yawPitchTemp[1], glm::radians(-89.9f), glm::radians(89.9f)));
-            }
-            ImGui::SliderAngle("FOV", &camera->fov, 0.0001f, 180.0f);
-            ImGui::SliderFloat("Speed", &camera->speed, 0.0f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
-
-            ImGui::SeparatorText("ECS");
+        if (ImGui::BeginTabItem("ECS")) {
             m_graphDisplay->draw();
             ImGui::EndTabItem();
         }
