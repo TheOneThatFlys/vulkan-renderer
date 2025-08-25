@@ -94,9 +94,11 @@ void AssetManager::loadGLB(const std::string& path) {
 
     auto root = ECS::createEntity();
     ECS::addComponent<Transform>(root, {});
+    ECS::addComponent<HierarchyComponent>(root, {0, {}, 0});
+    ECS::addComponent<NamedComponent>(root, {path});
     std::stack<std::tuple<i32, u32, ECS::Entity>> nodesToVisit;
     for (i32 nodeID : ctx.scenes[0].nodes) {
-        nodesToVisit.emplace(nodeID, 0, root);
+        nodesToVisit.emplace(nodeID, 1, root);
     }
     u32 i = 0;
     while (!nodesToVisit.empty()) {
@@ -129,7 +131,9 @@ void AssetManager::loadGLB(const std::string& path) {
         }
 
         ECS::addComponent<Transform>(entity, transform);
-        ECS::addComponent<HierarchyComponent>(entity, {parent});
+        ECS::addComponent<HierarchyComponent>(entity, {parent, {}, level});
+        ECS::addComponent<NamedComponent>(entity, {node.name});
+        ECS::getComponent<HierarchyComponent>(parent).children.push_back(entity);
         for (i32 child : node.children) {
             nodesToVisit.emplace(child, level + 1, entity);
         }

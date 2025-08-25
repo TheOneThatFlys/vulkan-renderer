@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <string>
 #include <iostream>
+#include <chrono>
 
 #include <vulkan/vulkan_hpp_macros.hpp>
 
@@ -71,6 +72,7 @@ FrameTimeInfo VulkanEngine::getFrameTimeInfo() const {
 	return {
 		.frameTime = m_deltaTime * 1000, // glfwGetTime returns seconds, so *1000 to convert to millis
 		.gpuTime = static_cast<float>(data[1] - data[0]) * nsPerTick / 1000000.0f, // gpu time is measured in nanoseconds, so divide by 1,000,000 to get millis
+		.cpuTime = m_cpuTime
 	};
 }
 
@@ -156,6 +158,8 @@ void VulkanEngine::initECS() {
 	ECS::registerComponent<Transform>();
 	ECS::registerComponent<Model3D>();
 	ECS::registerComponent<HierarchyComponent>();
+	ECS::registerComponent<NamedComponent>();
+
 	m_renderer = ECS::registerSystem<Renderer3D>(this, m_pipeline.get());
 	ECS::setSystemSignature<Renderer3D>(ECS::createSignature<Transform, Model3D>());
 
@@ -781,9 +785,12 @@ void VulkanEngine::endSingleCommand(const vk::raii::CommandBuffer &commandBuffer
 void VulkanEngine::mainLoop() {
 	auto prevTime = static_cast<float>(glfwGetTime());
 	while (!glfwWindowShouldClose(m_window)) {
+		const auto updateStartTime = std::chrono::high_resolution_clock::now();
 		for (const auto x : m_updatables) {
 			x->update(m_deltaTime);
 		}
+		m_cpuTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - updateStartTime).count();
+
 		glfwPollEvents();
 		drawFrame();
 		const auto nowTime = static_cast<float>(glfwGetTime());

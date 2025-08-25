@@ -21,5 +21,10 @@ struct Model3D {
 
 struct HierarchyComponent {
     ECS::Entity parent;
+    std::vector<ECS::Entity> children;
     u32 level;
+};
+
+struct NamedComponent {
+    std::string name;
 };

@@ -2,12 +2,22 @@
 
 #include <unordered_map>
 
+#include <glm/glm.hpp>
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan_raii.hpp>
 
 #include "Common.h"
+#include "ECS.h"
 
 constexpr u32 FRAME_AVERAGE_COUNT = 32;
+
+class SceneGraphDisplaySystem : public ECS::System {
+public:
+    void draw() const;
+private:
+    static void drawNodeRecursive(ECS::Entity entity);
+    static void drawMatrix(glm::mat4& matrix);
+};
 
 class VulkanEngine;
 class DebugWindow {
@@ -23,6 +33,7 @@ private:
     void createUpdateCallbacks();
 
     VulkanEngine* m_engine;
+    SceneGraphDisplaySystem* m_graphDisplay;
 
     std::unordered_map<UpdateCallback, int> m_updateCallbacks;
     std::unordered_map<UpdateCallback, int> m_callbackLives;

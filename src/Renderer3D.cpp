@@ -1,8 +1,5 @@
 #include "Renderer3D.h"
 
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtx/string_cast.hpp>
-
 #include "Components.h"
 
 Renderer3D::Renderer3D(VulkanEngine *engine, const Pipeline* pipeline)

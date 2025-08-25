@@ -9,18 +9,18 @@ CameraController::CameraController(GLFWwindow* window) : m_window(window) {
     updateVectors();
     int width, height;
     glfwGetWindowSize(window, &width, &height);
-    m_aspect = static_cast<float>(width) / height;
+    m_aspect = static_cast<float>(width) / static_cast<float>(height);
     // capture mouse
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
 void CameraController::update(float deltaTime) {
     // movement
-    float multiplier = deltaTime * m_speed;
+    float multiplier = deltaTime * speed;
     const glm::vec3 forwards = glm::normalize(glm::vec3(cos(m_yaw), 0.0f, sin(m_yaw)));
-    const glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+    constexpr glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
     const glm::vec3 right = glm::normalize(glm::cross(forwards, up));
-    glm::vec3 dv = glm::vec3(0.0f);
+    glm::vec3 dv = { 0.0f, 0.0f, 0.0f };
     if (InputManager::keyHeld(GLFW_KEY_LEFT_CONTROL)) {
         multiplier *= 3.0f;
     }
@@ -44,7 +44,7 @@ void CameraController::update(float deltaTime) {
     }
 
     if (glm::length(dv) != 0.0f) {
-        m_position += glm::normalize(dv) * multiplier;
+        position += glm::normalize(dv) * multiplier;
     }
 
     // escaping capture
@@ -70,17 +70,20 @@ void CameraController::update(float deltaTime) {
         if (m_pitch > m_pitchLimit) m_pitch = m_pitchLimit;
         if (m_pitch < -m_pitchLimit) m_pitch = -m_pitchLimit;
 
+        if (m_yaw > glm::radians(180.0f)) m_yaw -= glm::radians(360.0f);
+        if (m_yaw < glm::radians(-180.0f)) m_yaw += glm::radians(360.0f);
+
         updateVectors();
     }
 }
 
 glm::mat4 CameraController::getViewMatrix() const {
-    return glm::lookAt(m_position, m_position + m_front, m_up);
+    return glm::lookAt(position, position + m_front, m_up);
 }
 
 glm::mat4 CameraController::getProjectionMatrix() const {
-    glm::mat4 temp = glm::perspective(m_fov, m_aspect, 0.1f, 100.0f);
-    temp[1][1] *= -1;
+    glm::mat4 temp = glm::perspective(fov, m_aspect, 0.1f, 100.0f);
+    temp[1][1] *= -1; // glm assumes opengl coordinates so we flip for vulkan
     return temp;
 }
 

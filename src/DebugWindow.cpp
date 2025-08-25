@@ -1,24 +1,126 @@
 #include "DebugWindow.h"
 
-
 #include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 #include <ranges>
-#include <stack>
 
+#include "Components.h"
 #include "VulkanEngine.h"
+
+void SceneGraphDisplaySystem::draw() const {
+    ImGui::Text("Total entities: %u", m_entities.size());
+    for (const ECS::Entity entity : m_entities) {
+        u32 layer = 0;
+        if (ECS::hasComponent<HierarchyComponent>(entity)) {
+            layer = ECS::getComponent<HierarchyComponent>(entity).level;
+        }
+        if (layer == 0) {
+            drawNodeRecursive(entity);
+        }
+    }
+}
+
+void SceneGraphDisplaySystem::drawNodeRecursive(ECS::Entity entity) {
+    std::string name;
+    if (ECS::hasComponent<NamedComponent>(entity)) {
+        name = ECS::getComponent<NamedComponent>(entity).name;
+    }
+    else {
+        name = std::format("Entity #{}", entity);
+    }
+
+    if (ImGui::TreeNodeEx(name.c_str())) {
+
+        ImGui::SeparatorText("Components");
+        // Meta
+        if (ImGui::TreeNode("Meta")) {
+            ImGui::Text("ID: %d", entity);
+            ImGui::Text(std::format("Signature: {}", ECS::getSignature(entity).to_string()).c_str());
+            ImGui::TreePop();
+        }
+
+        // Hierarchy
+        if (ECS::hasComponent<HierarchyComponent>(entity)) {
+            if (ImGui::TreeNode("Hierarchy")) {
+                HierarchyComponent& hierarchy = ECS::getComponent<HierarchyComponent>(entity);
+                ImGui::Text("Parent: %d", hierarchy.parent);
+                std::string childrenString;
+                for (auto child : hierarchy.children) {
+                    childrenString += std::to_string(child) + ", ";
+                }
+                if (!childrenString.empty())
+                    childrenString = childrenString.substr(0, childrenString.size() - 2);
+                ImGui::Text(std::format("Children: [{}]", childrenString).c_str());
+                ImGui::Text("Level: %d", hierarchy.level);
+                ImGui::TreePop();
+            }
+        }
+        // Model
+        if (ECS::hasComponent<Model3D>(entity)) {
+            if (ImGui::TreeNode("Model3D")) {
+                auto&[mesh, material] = ECS::getComponent<Model3D>(entity);
+                ImGui::Text("Mesh: <0x%X>", mesh);
+                ImGui::Text("Material: <0x%X>", material);
+                ImGui::TreePop();
+            }
+        }
+        // Transform
+        if (ECS::hasComponent<Transform>(entity)) {
+            if (ImGui::TreeNode("Transform")) {
+                static bool showMatrix = false;
+                auto&[position, rotation, scale, transform] = ECS::getComponent<Transform>(entity);
+                ImGui::DragFloat3("Position", glm::value_ptr(position), 0.01f);
+                ImGui::DragFloat4("Rotation", glm::value_ptr(rotation), 0.01f, -1.0f, 1.0f);
+                ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.01f, 0.0f, std::numeric_limits<float>::max());
+
+                if (ImGui::Button("Normalize rotation"))
+                    rotation = glm::normalize(rotation);
+
+                ImGui::SameLine();
+                ImGui::Checkbox("Show matrix", &showMatrix);
+
+                if (showMatrix)
+                    drawMatrix(transform);
+
+                ImGui::TreePop();
+            }
+        }
+
+        if (ECS::hasComponent<HierarchyComponent>(entity)) {
+            HierarchyComponent& hierarchy = ECS::getComponent<HierarchyComponent>(entity);
+            if (!hierarchy.children.empty()) {
+                ImGui::SeparatorText("Children");
+                for (ECS::Entity child : hierarchy.children) {
+                    drawNodeRecursive(child);
+                }
+            }
+        }
+
+        ImGui::TreePop();
+    }
+}
+
+void SceneGraphDisplaySystem::drawMatrix(glm::mat4 &matrix) {
+    for (u32 row = 0; row < 4; ++row) {
+        for (u32 col = 0; col < 4; ++col) {
+            ImGui::Text("% .3f", matrix[col][row]);
+            if (col != 3) ImGui::SameLine();
+        }
+    }
+}
 
 DebugWindow::DebugWindow(VulkanEngine* engine, GLFWwindow *window, const vk::raii::Instance& instance, const vk::raii::PhysicalDevice& physicalDevice,
                          const vk::raii::Device& device, const vk::raii::Queue& queue, const vk::raii::RenderPass& renderPass) {
 
     m_engine = engine;
+    m_graphDisplay = ECS::registerSystem<SceneGraphDisplaySystem>();
+    ECS::setSystemSignature<SceneGraphDisplaySystem>(ECS::createSignature<>()); // views all entities in the ECS
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
-    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
@@ -70,21 +172,22 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
     if (ImGui::BeginTabBar("navbar")) {
         if (ImGui::BeginTabItem("Performance")) {
             // frame times
-            FrameTimeInfo avgTimes = { 1, 1 };
+            FrameTimeInfo avgTimes = { 1, 1, 1 };
             std::string frameTimeText, drawTimeText = "Loading...";
             if (m_framesFilled) {
                 for (auto const& frameTime : m_frameTimes) {
                     avgTimes.frameTime += frameTime.frameTime;
                     avgTimes.gpuTime += frameTime.gpuTime;
+                    avgTimes.cpuTime += frameTime.cpuTime;
                 }
                 avgTimes.frameTime /= FRAME_AVERAGE_COUNT;
                 avgTimes.gpuTime /= FRAME_AVERAGE_COUNT;
+                avgTimes.cpuTime /= FRAME_AVERAGE_COUNT;
             }
 
-            ImGui::Text(std::format("FPS:        {:.0f}", 1000 / avgTimes.frameTime).c_str());
-            ImGui::Text(std::format("eFPS:       {:.0f}", 1000 / avgTimes.gpuTime).c_str());
-            ImGui::Text(std::format("Frame time: {:.3f} ms", avgTimes.frameTime).c_str());
-            ImGui::Text(std::format("Draw time:  {:.3f} ms", avgTimes.gpuTime).c_str());
+            ImGui::Text(std::format("Frame:        {:.3f} ms ({:.0f} fps)", avgTimes.frameTime, 1000 / avgTimes.frameTime).c_str());
+            ImGui::Text(std::format("Draw:         {:.3f} ms ({:.0f} fps)", avgTimes.gpuTime, 1000 / avgTimes.gpuTime).c_str());
+            ImGui::Text(std::format("CPU (update): {:.3f} ms", avgTimes.cpuTime).c_str());
 
             ImGui::Separator();
             // memory usage
@@ -92,51 +195,26 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
             size_t usedGB = m_vramUsage.gpuUsed;
             size_t totalGB = m_vramUsage.gpuAvailable;
             std::string progress = std::format("{} / {}", storageSizeToString(usedGB), storageSizeToString(totalGB));
-            ImGui::ProgressBar(static_cast<float>(usedGB) / totalGB, ImVec2(0.0f, 0.0f), progress.c_str());
+            ImGui::ProgressBar(static_cast<float>(usedGB) / static_cast<float>(totalGB), ImVec2(0.0f, 0.0f), progress.c_str());
 
             ImGui::EndTabItem();
         }
 
         if (ImGui::BeginTabItem("Scene")) {
-            if (ImGui::TreeNode("Camera")) {
-                CameraController* camera = m_engine->getCamera();
-                glm::vec3 pos = camera->getPosition();
-                float values[] = { pos.x, pos.y, pos.z };
-                if (ImGui::DragFloat3("Position", values, 0.1f))
-                    camera->setPosition(glm::vec3(values[0], values[1], values[2]));
 
-                ImGui::TreePop();
+            ImGui::SeparatorText("Camera");
+            CameraController* camera = m_engine->getCamera();
+            ImGui::DragFloat3("Position", glm::value_ptr(camera->position), 0.1f);
+            float yawPitchTemp[] = {camera->getYaw(), camera->getPitch()};
+            if (ImGui::DragFloat2("Yaw/Pitch", yawPitchTemp, 0.02f, glm::radians(-180.0f), glm::radians(180.0f), "%.3f", ImGuiSliderFlags_WrapAround)) {
+                camera->setYaw(yawPitchTemp[0]);
+                camera->setPitch(std::ranges::clamp(yawPitchTemp[1], glm::radians(-89.9f), glm::radians(89.9f)));
             }
+            ImGui::SliderAngle("FOV", &camera->fov, 0.0001f, 180.0f);
+            ImGui::SliderFloat("Speed", &camera->speed, 0.0f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
 
-            // Scene* scene = m_engine->getScene();
-            // auto dfs = [&](const auto &self, Node* node, const u32 id) -> void {
-            //     if (ImGui::TreeNode(std::format("{} #{}", node->type, id).c_str())) {
-            //         // position
-            //         glm::vec3 pos = node->getPosition();
-            //         float values[] = {pos.x, pos.y, pos.z};
-            //         if (ImGui::DragFloat3("Position", values, 0.1f))
-            //             node->setPosition(glm::vec3(values[0], values[1], values[2]));
-            //         // rotation
-            //         glm::quat rotation = node->getRotation();
-            //         float values2[] = {rotation.x, rotation.y, rotation.z, rotation.w};
-            //         if (ImGui::DragFloat4("Rotation", values2, 0.01f, -1.0f, 1.0f))
-            //             node->setRotation(glm::quat(values2[3], values2[0], values2[1], values2[2]));
-            //         // scale
-            //         glm::vec3 scale = node->getScale();
-            //         float values3[] = {scale.x, scale.y, scale.z};
-            //         if (ImGui::DragFloat3("Scale", values3, 0.1f, 0.0f, std::numeric_limits<float>::max()))
-            //             node->setScale(glm::vec3(values3[0], values3[1], values3[2]));
-            //
-            //         // children
-            //         u32 i = 0;
-            //         for (const auto& child : node->getChildren()) {
-            //             self(self, child.get(), i++);
-            //         }
-            //         ImGui::TreePop();
-            //     }
-            // };
-            // dfs(dfs, scene, 0);
-
+            ImGui::SeparatorText("ECS");
+            m_graphDisplay->draw();
             ImGui::EndTabItem();
         }
 

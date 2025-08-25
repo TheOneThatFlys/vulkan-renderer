@@ -257,14 +257,19 @@ namespace ECS {
         g_systemManager->entitySignatureChanged(entity, signature);
     }
 
-    template<typename T>
-    T& getComponent(Entity entity) {
-        return g_componentManager->getComponent<T>(entity);
+    inline Signature getSignature(Entity entity) {
+        return g_entityManager->getSignature(entity);
     }
 
     template<typename T>
     bool hasComponent(Entity entity) {
         return g_entityManager->getSignature(entity).test(g_componentManager->getComponentID<T>());
+    }
+
+    template<typename T>
+    T& getComponent(Entity entity) {
+        assert(hasComponent<T>(entity));
+        return g_componentManager->getComponent<T>(entity);
     }
 
     template<typename T>
