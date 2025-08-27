@@ -22,7 +22,7 @@ void TransformSystem::update(float) {
         for (const ECS::Entity entity : layers.at(layerNumber)) {
             auto& [position, rotation, scale, transform] = ECS::getComponent<Transform>(entity);
             transform = glm::translate(glm::mat4(1.0f), position);
-            transform = glm::mat4_cast(rotation) * transform;
+            transform = transform * glm::mat4_cast(rotation);
             transform = glm::scale(transform, scale);
 
             if (layerNumber > 0 && ECS::hasComponent<HierarchyComponent>(entity)) {
