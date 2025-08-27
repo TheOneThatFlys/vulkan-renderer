@@ -73,6 +73,7 @@ private:
 	void initWindow();
 	void initVulkan();
 	void initECS();
+	void createScene() const;
 
 	void createInstance();
 	void createLogicalDevice();

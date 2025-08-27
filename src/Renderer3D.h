@@ -1,8 +1,8 @@
 #pragma once
 
-#include "ECS.h"
-
 #include <vulkan/vulkan_raii.hpp>
+
+#include "ECS.h"
 #include "Pipeline.h"
 #include "UniformBufferBlock.h"
 
@@ -11,7 +11,7 @@ struct FrameUniforms {
     glm::mat4 projection;
 };
 
-struct ModelUniforms {
+struct ModelUniform {
     glm::mat4 transform;
 };
 
@@ -30,6 +30,5 @@ private:
     vk::raii::DescriptorSet m_modelDescriptor;
 
     UniformBufferBlock<FrameUniforms> m_frameUniforms;
-    UniformBufferBlock<ModelUniforms> m_modelUniforms;
-
+    DynamicUniformBufferBlock<ModelUniform> m_modelUniforms;
 };

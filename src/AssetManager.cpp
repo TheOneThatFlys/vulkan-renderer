@@ -9,10 +9,18 @@
 #include <tiny_gltf.h>
 
 #include "Components.h"
-#include "VulkanEngine.h"
 
 AssetManager::AssetManager(VulkanEngine* engine) : m_engine(engine) {
     stbi_set_flip_vertically_on_load(true);
+
+    std::array<u8, 4> whitePixels = {255, 255, 255, 255};
+
+    m_textures.push_back(std::make_unique<Texture>(engine, whitePixels.data(), 1, 1));
+    m_pureWhite1x1Texture = m_textures.back().get();
+
+    std::array<u8, 4> normalPixels = {128, 128, 255, 0};
+    m_textures.push_back(std::make_unique<Texture>(engine, normalPixels.data(), 1, 1, vk::Format::eR8G8B8A8Unorm));
+    m_normal1x1Texture = m_textures.back().get();
 }
 
 void AssetManager::load(const char* root) {
@@ -25,8 +33,8 @@ void AssetManager::load(const char* root) {
 
         // model
         if (extension == ".glb") {
-            // Logger::info(std::format("Loading model at {}", path));
-            // loadGLB(path);
+            Logger::info(std::format("Loading model at {}", path));
+            loadGLB(path);
         }
         // image
         else if (extension == ".jpg" || extension == ".png") {
@@ -39,13 +47,12 @@ void AssetManager::load(const char* root) {
     }
 
     const auto endTime = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+    const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
     Logger::info(std::format("Loaded assets in {} ms", duration.count()));
 }
 
 // Load glb file and return the root entity
-ECS::Entity AssetManager::loadGLB(const std::string& path) {
-    const auto startTime = std::chrono::high_resolution_clock::now();
+void AssetManager::loadGLB(const std::string& path) {
     tinygltf::Model ctx;
     std::string error, warning;
     m_loader.LoadBinaryFromFile(&ctx, &error, &warning, path);
@@ -67,6 +74,8 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
     m_meshes.reserve(m_meshes.size() + meshes.size());
 
     // textures
+    if (ctx.textures.empty())
+        Logger::warn("Loaded file contains no textures");
     for (const auto & texture : ctx.textures) {
         const tinygltf::Sampler& sampler = ctx.samplers[texture.sampler];
         const tinygltf::Image& source = ctx.images[texture.source];
@@ -74,15 +83,28 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
         textures.emplace_back(m_textures.back().get());
     }
     // materials
+    if (ctx.materials.empty())
+        Logger::warn("Loaded file contains no materials");
     for (const auto & material : ctx.materials) {
-        m_materials.push_back(std::make_unique<Material>(m_engine, textures.at(material.pbrMetallicRoughness.baseColorTexture.index)));
+        i32 baseTextureIndex = material.pbrMetallicRoughness.baseColorTexture.index;
+        Texture* baseTexture;
+        if (baseTextureIndex == -1) {
+            baseTexture = m_pureWhite1x1Texture;
+        }
+        else {
+            baseTexture = textures.at(baseTextureIndex);
+        }
+        m_materials.push_back(std::make_unique<Material>(m_engine, baseTexture));
         materials.emplace_back(m_materials.back().get());
     }
     // meshes
+    if (ctx.meshes.empty())
+        Logger::warn("Loaded file contains no meshes");
     for (const auto & mesh : ctx.meshes) {
         m_meshes.push_back(loadMesh(ctx, mesh));
         meshes.emplace_back(m_meshes.back().get());
     }
+
     // nodes
     if (ctx.scenes.size() > 1)
         Logger::warn("Loaded file contains more than one scene, only first one was loaded ({} total)", ctx.scenes.size());
@@ -90,13 +112,9 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
     if (scene.nodes.empty())
         Logger::warn("Loaded scene contained no nodes");
 
-    auto root = ECS::createEntity();
-    ECS::addComponent<Transform>(root, {});
-    ECS::addComponent<HierarchyComponent>(root, {0, {}, 0});
-    ECS::addComponent<NamedComponent>(root, {path});
     std::stack<std::tuple<i32, u32, ECS::Entity>> nodesToVisit;
     for (i32 nodeID : ctx.scenes[0].nodes) {
-        nodesToVisit.emplace(nodeID, 1, root);
+        nodesToVisit.emplace(nodeID, 0, -1);
     }
     u32 i = 0;
     while (!nodesToVisit.empty()) {
@@ -131,17 +149,13 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
         ECS::addComponent<Transform>(entity, transform);
         ECS::addComponent<HierarchyComponent>(entity, {parent, {}, level});
         ECS::addComponent<NamedComponent>(entity, {node.name});
-        ECS::getComponent<HierarchyComponent>(parent).children.push_back(entity);
+        if (parent != -1) {
+            ECS::getComponent<HierarchyComponent>(parent).children.push_back(entity);
+        }
         for (i32 child : node.children) {
             nodesToVisit.emplace(child, level + 1, entity);
         }
     }
-
-    const auto endTime = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-    Logger::info(std::format("Loaded {} in {} ms", path, duration.count()));
-
-    return root;
 }
 
 std::unique_ptr<Mesh> AssetManager::loadMesh(const tinygltf::Model& ctx, const tinygltf::Mesh &mesh) {

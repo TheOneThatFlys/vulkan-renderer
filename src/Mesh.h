@@ -10,7 +10,6 @@ class Mesh {
 public:
     Mesh(VulkanEngine* engine, const std::vector<Vertex>& vertices, const std::vector<u32> &indexes);
     Mesh(VulkanEngine* engine, const std::vector<Vertex>& vertices, const std::vector<u16> &indexes);
-    Mesh(Mesh&&) = default;
     void draw(const vk::raii::CommandBuffer &commandBuffer) const;
 private:
     void createVertexBuffer(const std::vector<Vertex> &vertices);

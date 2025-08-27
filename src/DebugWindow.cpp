@@ -43,7 +43,7 @@ void SceneGraphDisplaySystem::drawNodeRecursive(ECS::Entity entity) {
 
         if (ECS::hasComponent<ControlledCamera>(entity)) {
             if (ImGui::TreeNode("Camera")) {
-                ControlledCamera& camera = ECS::getComponent<ControlledCamera>(entity);
+                auto& camera = ECS::getComponent<ControlledCamera>(entity);
                 ImGui::DragFloat3("Position", glm::value_ptr(camera.position), 0.1f);
                 float yawPitchTemp[] = {camera.yaw, camera.pitch};
                 if (ImGui::DragFloat2("Yaw/Pitch", yawPitchTemp, 0.02f, glm::radians(-180.0f), glm::radians(180.0f), "%.3f", ImGuiSliderFlags_WrapAround)) {
@@ -61,7 +61,7 @@ void SceneGraphDisplaySystem::drawNodeRecursive(ECS::Entity entity) {
         // Hierarchy
         if (ECS::hasComponent<HierarchyComponent>(entity)) {
             if (ImGui::TreeNode("Hierarchy")) {
-                HierarchyComponent& hierarchy = ECS::getComponent<HierarchyComponent>(entity);
+                auto& hierarchy = ECS::getComponent<HierarchyComponent>(entity);
                 ImGui::Text("Parent: %d", hierarchy.parent);
                 std::string childrenString;
                 for (auto child : hierarchy.children) {
@@ -77,9 +77,9 @@ void SceneGraphDisplaySystem::drawNodeRecursive(ECS::Entity entity) {
         // Model
         if (ECS::hasComponent<Model3D>(entity)) {
             if (ImGui::TreeNode("Model3D")) {
-                auto&[mesh, material] = ECS::getComponent<Model3D>(entity);
-                ImGui::Text("Mesh: <0x%X>", mesh);
-                ImGui::Text("Material: <0x%X>", material);
+                const auto& model = ECS::getComponent<Model3D>(entity);
+                ImGui::Text("Mesh: <0x%X>", model.mesh);
+                ImGui::Text("Material: <0x%X>", model.material);
                 ImGui::TreePop();
             }
         }
@@ -106,10 +106,10 @@ void SceneGraphDisplaySystem::drawNodeRecursive(ECS::Entity entity) {
         }
 
         if (ECS::hasComponent<HierarchyComponent>(entity)) {
-            HierarchyComponent& hierarchy = ECS::getComponent<HierarchyComponent>(entity);
+            auto& hierarchy = ECS::getComponent<HierarchyComponent>(entity);
             if (!hierarchy.children.empty()) {
                 ImGui::SeparatorText("Children");
-                for (ECS::Entity child : hierarchy.children) {
+                for (const ECS::Entity child : hierarchy.children) {
                     drawNodeRecursive(child);
                 }
             }

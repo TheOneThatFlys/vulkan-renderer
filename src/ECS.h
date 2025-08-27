@@ -5,7 +5,8 @@
 #include <unordered_map>
 #include <cassert>
 #include <ranges>
-#include <set>
+
+#include <unordered_set>
 
 #include "Common.h"
 
@@ -13,7 +14,7 @@
 
 namespace ECS {
 
-    using Entity = u32;
+    using Entity = i32;
     static constexpr Entity MAX_ENTITIES = 1024;
 
     using ComponentID = u8;
@@ -32,11 +33,10 @@ namespace ECS {
     public:
         void addComponent(Entity entity, T component) {
             assert(!m_entityToIndex.contains(entity));
-            u32 index = m_last;
+            u32 index = static_cast<u32>(m_components.size());
             m_indexToEntity[index] = entity;
             m_entityToIndex[entity] = index;
-            m_components.at(index) = component;
-            ++m_last;
+            m_components.push_back(component);
         }
 
         void removeComponent(Entity entity) {
@@ -44,7 +44,7 @@ namespace ECS {
 
             // move last item into deleted slot to maintain packing
             u32 indexRemoved = m_entityToIndex[entity];
-            u32 indexLast = m_last - 1;
+            u32 indexLast = static_cast<u32>(m_components.size() - 1);
             m_components[indexRemoved] = m_components[indexLast];
 
             // update maps
@@ -56,8 +56,7 @@ namespace ECS {
             m_entityToIndex.erase(entity);
             m_indexToEntity.erase(indexLast);
 
-            // decrement last pointer
-            --m_last;
+            m_components.pop_back();
         }
 
         T& getData(Entity entity) {
@@ -71,7 +70,7 @@ namespace ECS {
 
     private:
         u32 m_last = 0;
-        std::array<T, MAX_ENTITIES> m_components;
+        std::vector<T> m_components;
         std::unordered_map<Entity, u32> m_entityToIndex;
         std::unordered_map<u32, Entity> m_indexToEntity;
     };
@@ -126,8 +125,10 @@ namespace ECS {
 
     class System {
     public:
-        std::set<Entity> m_entities;
+        std::unordered_set<Entity> m_entities;
         virtual ~System() = default;
+        virtual void onEntityAdd(Entity entity) {};
+        virtual void onEntityRemove(Entity entity) {};
     };
 
     class SystemManager {
@@ -155,7 +156,10 @@ namespace ECS {
 
         void entityDestroyed(const Entity entity) {
             for (const auto& system : m_systems | std::views::values) {
-                system->m_entities.erase(entity);
+                if (system->m_entities.contains(entity)) {
+                    system->m_entities.erase(entity);
+                    system->onEntityRemove(entity);
+                }
             }
         }
 
@@ -163,10 +167,16 @@ namespace ECS {
             for (const auto& [type, system] : m_systems) {
                 const Signature& systemSignature = m_signatures[type];
                 if ((systemSignature & entitySignature) == systemSignature) {
-                    system->m_entities.insert(entity);
+                    if (!system->m_entities.contains(entity)) {
+                        system->m_entities.insert(entity);
+                        system->onEntityAdd(entity);
+                    }
                 }
                 else {
-                    system->m_entities.erase(entity);
+                    if (system->m_entities.contains(entity)) {
+                        system->m_entities.erase(entity);
+                        system->onEntityRemove(entity);
+                    }
                 }
             }
         }

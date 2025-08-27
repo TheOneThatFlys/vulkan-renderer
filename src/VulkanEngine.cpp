@@ -54,6 +54,7 @@ void VulkanEngine::run() {
 	initWindow();
 	initVulkan();
 	initECS();
+	createScene();
 	mainLoop();
 	cleanup();
 }
@@ -163,10 +164,10 @@ void VulkanEngine::initECS() {
 
 	m_updatables.push_back(ECS::registerSystem<TransformSystem>());
 	ECS::setSystemSignature<TransformSystem>(ECS::createSignature<Transform>());
+}
 
-
+void VulkanEngine::createScene() const {
 	m_assetManager->load("assets");
-	m_assetManager->loadGLB("assets/house.glb");
 }
 
 void VulkanEngine::createInstance() {
@@ -329,7 +330,7 @@ void VulkanEngine::createGraphicsPipeline() {
 		.setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
 		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex)
 		.addBinding(1, 0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment)
-		.addBinding(2, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex)
+		.addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex)
 		.create();
 }
 
@@ -414,15 +415,11 @@ void VulkanEngine::createQueryPool() {
 }
 
 void VulkanEngine::createDescriptorPool() {
-	vk::DescriptorPoolSize uniformPoolSize = {
-		.type = vk::DescriptorType::eUniformBuffer,
-		.descriptorCount = 1,
+	std::array poolSizes = {
+		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBuffer, 1},
+		vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler, 1},
+		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBufferDynamic, 1}
 	};
-	vk::DescriptorPoolSize samplerPoolSize = {
-		.type = vk::DescriptorType::eCombinedImageSampler,
-		.descriptorCount = 1
-	};
-	std::array poolSizes = {uniformPoolSize, samplerPoolSize};
 	vk::DescriptorPoolCreateInfo poolInfo = {
 		.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
 		.maxSets = 64,
@@ -841,8 +838,7 @@ void VulkanEngine::cleanup() const {
 	ECS::destroy();
 }
 
-int main()
-{
+int main() {
 	VULKAN_HPP_DEFAULT_DISPATCHER.init();
 	try {
 		VulkanEngine app;

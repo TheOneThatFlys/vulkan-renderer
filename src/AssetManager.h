@@ -17,7 +17,7 @@ class AssetManager {
 public:
     explicit AssetManager(VulkanEngine* engine);
     void load(const char* root);
-    ECS::Entity loadGLB(const std::string& path);
+    void loadGLB(const std::string& path);
 private:
     std::unique_ptr<Mesh> loadMesh(const tinygltf::Model &ctx, const tinygltf::Mesh &mesh);
     void loadImage(std::string path);
@@ -31,4 +31,7 @@ private:
     std::vector<std::unique_ptr<Mesh>> m_meshes;
     std::vector<std::unique_ptr<Material>> m_materials;
     std::vector<std::unique_ptr<Texture>> m_textures;
+
+    Texture* m_pureWhite1x1Texture;
+    Texture* m_normal1x1Texture;
 };

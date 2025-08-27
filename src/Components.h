@@ -14,15 +14,15 @@ struct Transform {
     glm::mat4 transform = glm::mat4(1.0f);
 };
 
-struct Model3D {
-    Mesh* mesh;
-    Material* material;
-};
-
 struct HierarchyComponent {
     ECS::Entity parent;
     std::vector<ECS::Entity> children;
     u32 level;
+};
+
+struct Model3D {
+    Mesh* mesh = nullptr;
+    Material* material = nullptr;
 };
 
 struct NamedComponent {
