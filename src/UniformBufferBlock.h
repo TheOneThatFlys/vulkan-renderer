@@ -6,8 +6,6 @@
 #include "Common.h"
 #include "VulkanEngine.h"
 
-class VulkanEngine;
-
 template <typename T>
 class UniformBufferBlock {
 public:
@@ -41,6 +39,54 @@ public:
 
 	void setData(const T& data) {
 		std::memcpy(m_data, &data, sizeof(T));
+	}
+
+private:
+	vk::raii::Buffer m_buffer = nullptr;
+	vk::raii::DeviceMemory m_deviceMemory = nullptr;
+	T* m_data;
+
+	const VulkanEngine* m_engine;
+	u32 m_binding;
+};
+
+template <typename T, u64 S>
+class UniformBufferBlockArray {
+public:
+	UniformBufferBlockArray(const VulkanEngine* engine, u32 binding) : m_engine(engine), m_binding(binding) {
+		vk::DeviceSize bufferSize = sizeof(T) * S;
+		std::tie(m_buffer, m_deviceMemory) = engine->createBuffer(bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
+		m_data = static_cast<T*>(m_deviceMemory.mapMemory(0, bufferSize));
+	}
+
+	~UniformBufferBlockArray() {
+		m_deviceMemory.unmapMemory();
+	}
+
+	void addToSet(const vk::raii::DescriptorSet& descriptorSet) const {
+		vk::DescriptorBufferInfo bufferInfo = {
+			.buffer = m_buffer,
+			.offset = 0,
+			.range = sizeof(T),
+		};
+
+		vk::WriteDescriptorSet writeInfo = {
+			.dstSet = *descriptorSet,
+			.dstBinding = m_binding,
+			.dstArrayElement = 0,
+			.descriptorCount = S,
+			.descriptorType = vk::DescriptorType::eUniformBuffer,
+			.pBufferInfo = &bufferInfo,
+		};
+		m_engine->getDevice().updateDescriptorSets(writeInfo, nullptr);
+	}
+
+	void setData(const std::array<T, S>& data) {
+		std::memcpy(m_data, &data, sizeof(T)*S);
+	}
+
+	void setData(u64 index, const T& data) {
+		std::memcpy(m_data + index, &data, sizeof(T));
 	}
 
 private:

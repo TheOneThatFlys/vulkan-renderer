@@ -3,6 +3,7 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include "ECS.h"
+#include "LightSystem.h"
 #include "Pipeline.h"
 #include "UniformBufferBlock.h"
 
@@ -11,8 +12,15 @@ struct FrameUniforms {
     glm::mat4 projection;
 };
 
-struct ModelUniform {
+struct ModelUniforms {
     glm::mat4 transform;
+    glm::mat4 normal;
+};
+
+struct FragFrameData {
+    glm::vec3 cameraPosition;
+    std::array<LightSystem::PointLightFragData, LightSystem::MAX_LIGHTS> lights;
+    u32 nLights;
 };
 
 class Renderer3D : public ECS::System {
@@ -30,5 +38,6 @@ private:
     vk::raii::DescriptorSet m_modelDescriptor;
 
     UniformBufferBlock<FrameUniforms> m_frameUniforms;
-    DynamicUniformBufferBlock<ModelUniform> m_modelUniforms;
+    DynamicUniformBufferBlock<ModelUniforms> m_modelUniforms;
+    UniformBufferBlock<FragFrameData> m_fragFrameUniforms;
 };

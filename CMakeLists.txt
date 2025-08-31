@@ -60,13 +60,11 @@ add_executable (VulkanRenderer
         src/Logger.h
         src/Mesh.cpp
         src/Mesh.h
-        src/Vertex.cpp
         src/Vertex.h
         src/Texture.cpp
         src/Texture.h
         src/Material.cpp
         src/Material.h
-        src/UniformBufferBlock.cpp
         src/UniformBufferBlock.h
         src/ECS.h
         src/Components.h
@@ -76,6 +74,10 @@ add_executable (VulkanRenderer
         src/Pipeline.h
         src/TransformSystem.cpp
         src/TransformSystem.h
+        src/EntitySearcher.cpp
+        src/EntitySearcher.h
+        src/LightSystem.cpp
+        src/LightSystem.h
 )
 
 target_link_libraries(VulkanRenderer PRIVATE glfw)

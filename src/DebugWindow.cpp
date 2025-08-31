@@ -33,6 +33,7 @@ void SceneGraphDisplaySystem::drawNodeRecursive(ECS::Entity entity) {
 
     if (ImGui::TreeNodeEx(name.c_str())) {
 
+        // Components sorted alphabetically
         ImGui::SeparatorText("Components");
         // Meta
         if (ImGui::TreeNode("Meta")) {
@@ -41,6 +42,7 @@ void SceneGraphDisplaySystem::drawNodeRecursive(ECS::Entity entity) {
             ImGui::TreePop();
         }
 
+        // Camera
         if (ECS::hasComponent<ControlledCamera>(entity)) {
             if (ImGui::TreeNode("Camera")) {
                 auto& camera = ECS::getComponent<ControlledCamera>(entity);
@@ -74,6 +76,15 @@ void SceneGraphDisplaySystem::drawNodeRecursive(ECS::Entity entity) {
                 ImGui::TreePop();
             }
         }
+        // Light
+        if (ECS::hasComponent<PointLight>(entity)) {
+            if (ImGui::TreeNode("Light")) {
+                auto& light = ECS::getComponent<PointLight>(entity);
+                ImGui::ColorEdit3("Colour", glm::value_ptr(light.colour));
+                ImGui::DragFloat("Strength", &light.strength, 1, 0, std::numeric_limits<float>::max());
+                ImGui::TreePop();
+            }
+        }
         // Model
         if (ECS::hasComponent<Model3D>(entity)) {
             if (ImGui::TreeNode("Model3D")) {
@@ -92,7 +103,9 @@ void SceneGraphDisplaySystem::drawNodeRecursive(ECS::Entity entity) {
                 ImGui::DragFloat4("Rotation", glm::value_ptr(rotation), 0.01f, -1.0f, 1.0f);
                 ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.01f, 0.0f, std::numeric_limits<float>::max());
 
-                if (ImGui::Button("Normalize rotation"))
+                static bool normalizeRotation = false;
+                ImGui::Checkbox("Normalize rotation", &normalizeRotation);
+                if (normalizeRotation)
                     rotation = glm::normalize(rotation);
 
                 ImGui::SameLine();

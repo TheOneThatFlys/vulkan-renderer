@@ -17,6 +17,8 @@
 #include "DebugWindow.h"
 #include "AssetManager.h"
 #include "Components.h"
+#include "EntitySearcher.h"
+#include "LightSystem.h"
 #include "Pipeline.h"
 #include "Renderer3D.h"
 #include "TransformSystem.h"
@@ -155,6 +157,10 @@ void VulkanEngine::initECS() {
 	ECS::registerComponent<HierarchyComponent>();
 	ECS::registerComponent<NamedComponent>();
 	ECS::registerComponent<ControlledCamera>();
+	ECS::registerComponent<PointLight>();
+
+	ECS::registerSystem<EntitySearcher>();
+	ECS::setSystemSignature<EntitySearcher>(ECS::createSignature<NamedComponent>());
 
 	m_updatables.push_back(ECS::registerSystem<ControlledCameraSystem>(m_window));
 	ECS::setSystemSignature<ControlledCameraSystem>(ECS::createSignature<ControlledCamera>());
@@ -164,10 +170,25 @@ void VulkanEngine::initECS() {
 
 	m_updatables.push_back(ECS::registerSystem<TransformSystem>());
 	ECS::setSystemSignature<TransformSystem>(ECS::createSignature<Transform>());
+
+	ECS::registerSystem<LightSystem>();
+	ECS::setSystemSignature<LightSystem>(ECS::createSignature<Transform, PointLight>());
 }
 
 void VulkanEngine::createScene() const {
 	m_assetManager->load("assets");
+
+	ECS::Entity sphere = ECS::getSystem<EntitySearcher>()->find("Icosphere").value();
+	auto &sphereTransform = ECS::getComponent<Transform>(sphere);
+	sphereTransform.scale = glm::vec3(0.1f);
+	sphereTransform.position = glm::vec3(0.0f, 10.0f, 0.0f);
+
+
+	ECS::Entity light = ECS::createEntity();
+	ECS::addComponent<NamedComponent>(light, {"PointLight"});
+	ECS::addComponent<PointLight>(light, {.colour = glm::vec3(1.0f, 1.0f, 1.0f), .strength = 1.0f});
+	ECS::addComponent<Transform>(light, {});
+	HierarchyComponent::addChild(sphere, light);
 }
 
 void VulkanEngine::createInstance() {
@@ -328,9 +349,10 @@ void VulkanEngine::createGraphicsPipeline() {
 		.addShaderStage("shaders/shader.frag.spv")
 		.attachRenderPass(m_renderPass)
 		.setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
-		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex)
-		.addBinding(1, 0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment)
-		.addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex)
+		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
+		.addBinding(0, 1, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment) // frame data - lights & camera
+		.addBinding(1, 0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material
+		.addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex) // model data
 		.create();
 }
 
@@ -416,9 +438,9 @@ void VulkanEngine::createQueryPool() {
 
 void VulkanEngine::createDescriptorPool() {
 	std::array poolSizes = {
-		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBuffer, 1},
-		vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler, 1},
-		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBufferDynamic, 1}
+		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBuffer, 4},
+		vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler, 4},
+		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBufferDynamic, 4}
 	};
 	vk::DescriptorPoolCreateInfo poolInfo = {
 		.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,

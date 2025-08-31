@@ -172,17 +172,27 @@ std::unique_ptr<Mesh> AssetManager::loadMesh(const tinygltf::Model& ctx, const t
     const tinygltf::Accessor& uvAccessor = ctx.accessors[primitive.attributes.at("TEXCOORD_0")];
     const tinygltf::BufferView& uvBufferView = ctx.bufferViews[uvAccessor.bufferView];
     const tinygltf::Buffer& uvBuffer = ctx.buffers[uvBufferView.buffer];
+    const tinygltf::Accessor& normalAccessor = ctx.accessors[primitive.attributes.at("NORMAL")];
+    const tinygltf::BufferView& normalBufferView = ctx.bufferViews[normalAccessor.bufferView];
+    const tinygltf::Buffer& normalBuffer = ctx.buffers[normalBufferView.buffer];
 
     validateAccessor(positionAccessor, TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC3);
     validateAccessor(uvAccessor, TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC2);
+    validateAccessor(normalAccessor, TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC3);
 
     vertices.reserve(positionAccessor.count);
     const size_t positionStart = positionAccessor.byteOffset + positionBufferView.byteOffset;
     const size_t uvStart = uvAccessor.byteOffset + uvBufferView.byteOffset;
+    const size_t normalStart = normalAccessor.byteOffset + normalBufferView.byteOffset;
     for (u32 i = 0; i < positionAccessor.count; ++i) {
         const auto pos = reinterpret_cast<const float*>(&positionBuffer.data[positionStart + i * 12]);
         const auto uv = reinterpret_cast<const float*>(&uvBuffer.data[uvStart + i * 8]);
-        vertices.emplace_back(glm::vec3(pos[0], pos[1], pos[2]), glm::vec2(uv[0], uv[1]));
+        const auto normal = reinterpret_cast<const float*>(&normalBuffer.data[normalStart + i * 12]);
+        vertices.emplace_back(
+            glm::vec3(pos[0], pos[1], pos[2]), // position
+            glm::vec2(uv[0], uv[1]), // uv
+            glm::vec3(normal[0], normal[1], normal[2]) // normal
+        );
     }
 
     // load indexes

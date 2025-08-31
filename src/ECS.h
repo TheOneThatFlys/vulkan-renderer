@@ -243,10 +243,6 @@ namespace ECS {
         g_componentManager = nullptr;
     }
 
-    inline Entity createEntity() {
-        return g_entityManager->createEntity();
-    }
-
     inline void destroyEntity(Entity entity) {
         g_entityManager->destroyEntity(entity);
         g_componentManager->entityDestroyed(entity);
@@ -265,6 +261,10 @@ namespace ECS {
         signature.set(g_componentManager->getComponentID<T>(), true);
         g_entityManager->setSignature(entity, signature);
         g_systemManager->entitySignatureChanged(entity, signature);
+    }
+
+    inline Entity createEntity() {
+        return g_entityManager->createEntity();
     }
 
     template<typename T>
