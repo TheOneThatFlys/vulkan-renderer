@@ -112,14 +112,14 @@ void AssetManager::loadGLB(const std::string& path) {
     if (scene.nodes.empty())
         Logger::warn("Loaded scene contained no nodes");
 
-    std::stack<std::tuple<i32, u32, ECS::Entity>> nodesToVisit;
+    std::stack<std::tuple<i32, ECS::Entity>> nodesToVisit;
     for (i32 nodeID : ctx.scenes[0].nodes) {
-        nodesToVisit.emplace(nodeID, 0, -1);
+        nodesToVisit.emplace(nodeID, -1);
     }
     u32 i = 0;
     while (!nodesToVisit.empty()) {
         ++i;
-        auto [nodeID, level, parent] = nodesToVisit.top();
+        auto [nodeID, parent] = nodesToVisit.top();
         nodesToVisit.pop();
         const tinygltf::Node& node = ctx.nodes[nodeID];
 
@@ -147,13 +147,13 @@ void AssetManager::loadGLB(const std::string& path) {
         }
 
         ECS::addComponent<Transform>(entity, transform);
-        ECS::addComponent<HierarchyComponent>(entity, {parent, {}, level});
+        ECS::addComponent<HierarchyComponent>(entity, {parent, {}});
         ECS::addComponent<NamedComponent>(entity, {node.name});
         if (parent != -1) {
             ECS::getComponent<HierarchyComponent>(parent).children.push_back(entity);
         }
         for (i32 child : node.children) {
-            nodesToVisit.emplace(child, level + 1, entity);
+            nodesToVisit.emplace(child, entity);
         }
     }
 }

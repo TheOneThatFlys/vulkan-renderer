@@ -12,11 +12,8 @@
 void SceneGraphDisplaySystem::draw() const {
     ImGui::Text("Total entities: %u", m_entities.size());
     for (const ECS::Entity entity : m_entities) {
-        u32 layer = 0;
-        if (ECS::hasComponent<HierarchyComponent>(entity)) {
-            layer = ECS::getComponent<HierarchyComponent>(entity).level;
-        }
-        if (layer == 0) {
+        const auto hierarchy = ECS::getComponentOptional<HierarchyComponent>(entity);
+        if (!hierarchy || hierarchy->parent == -1) {
             drawNodeRecursive(entity);
         }
     }
@@ -72,7 +69,6 @@ void SceneGraphDisplaySystem::drawNodeRecursive(ECS::Entity entity) {
                 if (!childrenString.empty())
                     childrenString = childrenString.substr(0, childrenString.size() - 2);
                 ImGui::Text(std::format("Children: [{}]", childrenString).c_str());
-                ImGui::Text("Level: %d", hierarchy.level);
                 ImGui::TreePop();
             }
         }

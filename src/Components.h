@@ -17,7 +17,6 @@ struct Transform {
 struct HierarchyComponent {
     ECS::Entity parent;
     std::vector<ECS::Entity> children;
-    u32 level;
 
     // generate a hierarchy component from a parent and add it onto the child
     static void addChild(const ECS::Entity parent, const ECS::Entity child) {
@@ -26,34 +25,30 @@ struct HierarchyComponent {
         assert(ECS::hasComponent<HierarchyComponent>(parent));
         auto &parentHierarchy = ECS::getComponent<HierarchyComponent>(parent);
         parentHierarchy.children.push_back(child);
-        ECS::addComponent<HierarchyComponent>(child, {parent, {}, parentHierarchy.level + 1});
+        ECS::addComponent<HierarchyComponent>(child, {parent, {}});
     }
 
     // generate a hierarchy component with no parent and add to child
     static void addEmpty(const ECS::Entity child) {
         assert(child >= 0);
-        ECS::addComponent<HierarchyComponent>(child, {-1, {}, 0});
+        ECS::addComponent<HierarchyComponent>(child, {-1, {}});
     }
 
-    // // move a child component to a new parent
-    // static void move(const ECS::Entity newParent, const ECS::Entity child) {
-    //     assert(ECS::hasComponent<HierarchyComponent>(child));
-    //     assert(ECS::hasComponent<HierarchyComponent>(newParent));
-    //
-    //     auto &childHierarchy = ECS::getComponent<HierarchyComponent>(child);
-    //     if (childHierarchy.parent != -1) {
-    //         auto& parentsChildren = ECS::getComponent<HierarchyComponent>(childHierarchy.parent).children;
-    //         std::erase(parentsChildren, child);
-    //     }
-    //
-    //     auto &parentHierarchy = ECS::getComponent<HierarchyComponent>(newParent);
-    //     parentHierarchy.children.push_back(child);
-    //     childHierarchy.parent = newParent;
-    //
-    //     // we need to resolve levels recursively
-    //     childHierarchy.level = parentHierarchy.level + 1;
-    //
-    // }
+    // move a child component to a new parent
+    static void move(const ECS::Entity newParent, const ECS::Entity child) {
+        assert(ECS::hasComponent<HierarchyComponent>(child));
+        assert(ECS::hasComponent<HierarchyComponent>(newParent));
+
+        auto &childHierarchy = ECS::getComponent<HierarchyComponent>(child);
+        if (childHierarchy.parent != -1) {
+            auto& parentsChildren = ECS::getComponent<HierarchyComponent>(childHierarchy.parent).children;
+            std::erase(parentsChildren, child);
+        }
+
+        auto &parentHierarchy = ECS::getComponent<HierarchyComponent>(newParent);
+        parentHierarchy.children.push_back(child);
+        childHierarchy.parent = newParent;
+    }
 };
 
 struct Model3D {

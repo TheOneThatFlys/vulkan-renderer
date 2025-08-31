@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <cassert>
 #include <ranges>
-
+#include <optional>
 #include <unordered_set>
 
 #include "Common.h"
@@ -27,7 +27,7 @@ namespace ECS {
         virtual ~IComponentArray() = default;
         virtual void entityDestroyed(Entity entity) = 0;
     };
-    // Stores components of type T in a densely packed array
+    // Stores components of type T in a densely packed vector
     template<typename T>
     class ComponentArray : public IComponentArray {
     public:
@@ -289,6 +289,15 @@ namespace ECS {
     T& getComponent(Entity entity) {
         assert(hasComponent<T>(entity));
         return g_componentManager->getComponent<T>(entity);
+    }
+
+    template<typename T>
+    T* getComponentOptional(Entity entity) {
+        T* ret = nullptr;
+        if (hasComponent<T>(entity)) {
+            ret = &getComponent<T>(entity);
+        }
+        return ret;
     }
 
     template<typename T>

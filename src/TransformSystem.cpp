@@ -1,33 +1,42 @@
 #include "TransformSystem.h"
 
+#include <stack>
+
 #include "Components.h"
 
 void TransformSystem::update(float) {
-
-    // first loop through entities and sort by layer
-    std::vector<std::vector<ECS::Entity>> layers;
+    std::stack<ECS::Entity> toVisit;
     for (const ECS::Entity entity : m_entities) {
-        u32 layer = 0;
-        if (ECS::hasComponent<HierarchyComponent>(entity)) {
-            layer = ECS::getComponent<HierarchyComponent>(entity).level;
+        const auto hierarchy = ECS::getComponentOptional<HierarchyComponent>(entity);
+        if (!hierarchy || hierarchy->parent == -1) {
+            toVisit.emplace(entity);
         }
-
-        if (layer >= layers.size()) {
-            layers.emplace_back();
-        }
-        layers.at(layer).push_back(entity);
     }
-    // loop through layers in order and resolve - this ensures transformations are resolved properly
-    for (u32 layerNumber = 0; layerNumber < layers.size(); ++layerNumber) {
-        for (const ECS::Entity entity : layers.at(layerNumber)) {
-            auto& [position, rotation, scale, transform] = ECS::getComponent<Transform>(entity);
-            transform = glm::translate(glm::mat4(1.0f), position);
-            transform = transform * glm::mat4_cast(rotation);
-            transform = glm::scale(transform, scale);
 
-            if (layerNumber > 0 && ECS::hasComponent<HierarchyComponent>(entity)) {
-                const ECS::Entity parent = ECS::getComponent<HierarchyComponent>(entity).parent;
-                transform = ECS::getComponent<Transform>(parent).transform * transform;
+    while (!toVisit.empty()) {
+        // we are not guaranteed that this entity will have a hierarchy component, but it will always have a transform component
+        ECS::Entity entity = toVisit.top();
+        toVisit.pop();
+
+        const auto hierarchy = ECS::getComponentOptional<HierarchyComponent>(entity);
+        auto& [position, rotation, scale, transform] = ECS::getComponent<Transform>(entity);
+
+        transform = glm::translate(glm::mat4(1.0f), position);
+        transform = transform * glm::mat4_cast(rotation);
+        transform = glm::scale(transform, scale);
+
+        if (hierarchy && hierarchy->parent != -1) {
+            const auto parentTransform = ECS::getComponentOptional<Transform>(hierarchy->parent);
+            if (parentTransform) {
+                transform = parentTransform->transform * transform;
+            }
+        }
+
+        if (hierarchy) {
+            for (const ECS::Entity child : hierarchy->children) {
+                if (ECS::hasComponent<Transform>(child)) {
+                    toVisit.emplace(child);
+                }
             }
         }
     }
