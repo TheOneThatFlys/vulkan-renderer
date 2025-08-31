@@ -179,16 +179,13 @@ void VulkanEngine::createScene() const {
 	m_assetManager->load("assets");
 
 	ECS::Entity sphere = ECS::getSystem<EntitySearcher>()->find("Icosphere").value();
+	ECS::addComponent<PointLight>(sphere, {
+		.colour = glm::vec3(1.0f, 1.0f, 1.0f),
+		.strength = 200.0f
+	});
 	auto &sphereTransform = ECS::getComponent<Transform>(sphere);
 	sphereTransform.scale = glm::vec3(0.1f);
 	sphereTransform.position = glm::vec3(0.0f, 10.0f, 0.0f);
-
-
-	ECS::Entity light = ECS::createEntity();
-	ECS::addComponent<NamedComponent>(light, {"PointLight"});
-	ECS::addComponent<PointLight>(light, {.colour = glm::vec3(1.0f, 1.0f, 1.0f), .strength = 1.0f});
-	ECS::addComponent<Transform>(light, {});
-	HierarchyComponent::addChild(sphere, light);
 }
 
 void VulkanEngine::createInstance() {
@@ -351,7 +348,12 @@ void VulkanEngine::createGraphicsPipeline() {
 		.setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
 		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
 		.addBinding(0, 1, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment) // frame data - lights & camera
-		.addBinding(1, 0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material
+
+		.addBinding(1, 0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - base
+		.addBinding(1, 1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - mr
+		.addBinding(1, 2, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - ao
+		.addBinding(1, 3, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - normal
+
 		.addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex) // model data
 		.create();
 }

@@ -73,28 +73,25 @@ void AssetManager::loadGLB(const std::string& path) {
     m_materials.reserve(m_materials.size() + materials.size());
     m_meshes.reserve(m_meshes.size() + meshes.size());
 
-    // textures
-    if (ctx.textures.empty())
-        Logger::warn("Loaded file contains no textures");
-    for (const auto & texture : ctx.textures) {
-        const tinygltf::Sampler& sampler = ctx.samplers[texture.sampler];
-        const tinygltf::Image& source = ctx.images[texture.source];
-        m_textures.push_back(std::make_unique<Texture>(m_engine, source.image.data(), source.width, source.height));
-        textures.emplace_back(m_textures.back().get());
-    }
     // materials
     if (ctx.materials.empty())
         Logger::warn("Loaded file contains no materials");
     for (const auto & material : ctx.materials) {
-        i32 baseTextureIndex = material.pbrMetallicRoughness.baseColorTexture.index;
-        Texture* baseTexture;
-        if (baseTextureIndex == -1) {
-            baseTexture = m_pureWhite1x1Texture;
-        }
-        else {
-            baseTexture = textures.at(baseTextureIndex);
-        }
-        m_materials.push_back(std::make_unique<Material>(m_engine, baseTexture));
+        auto resolveTexture = [&](const i32 index, Texture* fallback, vk::Format format) -> Texture* {
+            if (index == -1) {
+                return fallback;
+            }
+            const tinygltf::Texture& texture = ctx.textures[index];
+            const tinygltf::Image& source = ctx.images[texture.source];
+            m_textures.push_back(std::make_unique<Texture>(m_engine, source.image.data(), source.width, source.height, format));
+            return m_textures.back().get();
+        };
+
+        Texture *baseTexture = resolveTexture(material.pbrMetallicRoughness.baseColorTexture.index, m_pureWhite1x1Texture, vk::Format::eR8G8B8A8Srgb);
+        Texture *metallicRoughnessTexture = resolveTexture(material.pbrMetallicRoughness.metallicRoughnessTexture.index, m_pureWhite1x1Texture, vk::Format::eR8G8B8A8Unorm);
+        Texture *aoTexture = resolveTexture(material.occlusionTexture.index, m_pureWhite1x1Texture, vk::Format::eR8G8B8A8Unorm);
+        Texture *normalTexture = resolveTexture(material.normalTexture.index, m_normal1x1Texture, vk::Format::eR8G8B8A8Unorm);
+        m_materials.push_back(std::make_unique<Material>(m_engine, baseTexture, metallicRoughnessTexture, aoTexture, normalTexture));
         materials.emplace_back(m_materials.back().get());
     }
     // meshes
@@ -164,34 +161,44 @@ std::unique_ptr<Mesh> AssetManager::loadMesh(const tinygltf::Model& ctx, const t
     }
     const tinygltf::Primitive& primitive = mesh.primitives.at(0);
 
+    const auto loadBuffer = [&](u32 accessorIndex) -> std::tuple<const tinygltf::Accessor&, const tinygltf::BufferView&, const tinygltf::Buffer&> {
+        const tinygltf::Accessor& accessor = ctx.accessors[accessorIndex];
+        const tinygltf::BufferView& bufferView = ctx.bufferViews[accessor.bufferView];
+        const tinygltf::Buffer& buffer = ctx.buffers[bufferView.buffer];
+        return {accessor, bufferView, buffer};
+    };
     // load vertex info
+    assert(primitive.attributes.contains("POSITION"));
+    assert(primitive.attributes.contains("TEXCOORD_0"));
+    assert(primitive.attributes.contains("NORMAL"));
+    assert(primitive.attributes.contains("TANGENT"));
+
     std::vector<Vertex> vertices;
-    const tinygltf::Accessor& positionAccessor = ctx.accessors[primitive.attributes.at("POSITION")];
-    const tinygltf::BufferView& positionBufferView = ctx.bufferViews[positionAccessor.bufferView];
-    const tinygltf::Buffer& positionBuffer = ctx.buffers[positionBufferView.buffer];
-    const tinygltf::Accessor& uvAccessor = ctx.accessors[primitive.attributes.at("TEXCOORD_0")];
-    const tinygltf::BufferView& uvBufferView = ctx.bufferViews[uvAccessor.bufferView];
-    const tinygltf::Buffer& uvBuffer = ctx.buffers[uvBufferView.buffer];
-    const tinygltf::Accessor& normalAccessor = ctx.accessors[primitive.attributes.at("NORMAL")];
-    const tinygltf::BufferView& normalBufferView = ctx.bufferViews[normalAccessor.bufferView];
-    const tinygltf::Buffer& normalBuffer = ctx.buffers[normalBufferView.buffer];
+    const auto& [positionAccessor, positionBufferView, positionBuffer] = loadBuffer(primitive.attributes.at("POSITION"));
+    const auto& [uvAccessor, uvBufferView, uvBuffer] = loadBuffer(primitive.attributes.at("TEXCOORD_0"));
+    const auto& [normalAccessor, normalBufferView, normalBuffer] = loadBuffer(primitive.attributes.at("NORMAL"));
+    const auto& [tangentAccessor, tangentBufferView, tangentBuffer] = loadBuffer(primitive.attributes.at("TANGENT"));
 
     validateAccessor(positionAccessor, TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC3);
     validateAccessor(uvAccessor, TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC2);
     validateAccessor(normalAccessor, TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC3);
+    validateAccessor(tangentAccessor, TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC4);
 
     vertices.reserve(positionAccessor.count);
     const size_t positionStart = positionAccessor.byteOffset + positionBufferView.byteOffset;
     const size_t uvStart = uvAccessor.byteOffset + uvBufferView.byteOffset;
     const size_t normalStart = normalAccessor.byteOffset + normalBufferView.byteOffset;
+    const size_t tangentStart = tangentAccessor.byteOffset + tangentBufferView.byteOffset;
     for (u32 i = 0; i < positionAccessor.count; ++i) {
         const auto pos = reinterpret_cast<const float*>(&positionBuffer.data[positionStart + i * 12]);
         const auto uv = reinterpret_cast<const float*>(&uvBuffer.data[uvStart + i * 8]);
         const auto normal = reinterpret_cast<const float*>(&normalBuffer.data[normalStart + i * 12]);
+        const auto tangent = reinterpret_cast<const float*>(&tangentBuffer.data[tangentStart + i * 16]);
         vertices.emplace_back(
             glm::vec3(pos[0], pos[1], pos[2]), // position
             glm::vec2(uv[0], uv[1]), // uv
-            glm::vec3(normal[0], normal[1], normal[2]) // normal
+            glm::vec3(normal[0], normal[1], normal[2]), // normal
+            glm::vec3(tangent[0], tangent[1], tangent[2]) // tangent
         );
     }
 

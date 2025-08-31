@@ -7,6 +7,7 @@ struct Vertex {
     glm::vec3 pos;
     glm::vec2 uv;
     glm::vec3 normal;
+    glm::vec3 tangent;
 
     static vk::VertexInputBindingDescription getBindingDescription() {
         return {
@@ -32,11 +33,19 @@ struct Vertex {
             .format = vk::Format::eR32G32Sfloat,
             .offset = offsetof(Vertex, uv)
         });
+        // normal
         descriptions.push_back({
             .location = 2,
             .binding = 0,
             .format = vk::Format::eR32G32B32Sfloat,
             .offset = offsetof(Vertex, normal)
+        });
+        // tangent
+        descriptions.push_back({
+            .location = 3,
+            .binding = 0,
+            .format = vk::Format::eR32G32B32Sfloat,
+            .offset = offsetof(Vertex, tangent)
         });
         return descriptions;
     }
