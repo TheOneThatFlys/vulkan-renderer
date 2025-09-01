@@ -3,12 +3,14 @@
 ---
 
 - Shadow mapping
+- Mipmaps
 - AA
 - Skybox
 - ssao?
 - IBL D:
 - Change VulkanEngine to global scope?
 - Ray tracing?
+- Switch from tinygltf -> [fastgltf](https://github.com/spnda/fastgltf)
 
 ### Small Optimisations (low prio.)
 

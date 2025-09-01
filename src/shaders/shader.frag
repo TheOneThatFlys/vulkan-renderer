@@ -99,7 +99,9 @@ vec3 pointLightContribution(PointLight pLight, BRDFParams p)
 }
 
 void main() {
-    vec3 albedo = texture(baseColourTexture, UV).rgb;
+    vec4 albedoAlpha = texture(baseColourTexture, UV).rgba;
+    vec3 albedo = albedoAlpha.rgb;
+    if (albedoAlpha.a < 0.5) discard;
     vec2 metallicRoughness = texture(metallicRoughnessTexture, UV).rg;
     float ao = texture(aoTexture, UV).r;
     vec3 normal = texture(normalTexture, UV).rgb;

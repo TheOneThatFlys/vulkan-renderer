@@ -218,13 +218,14 @@ namespace ECS {
 
         Signature getSignature(Entity entity) const {
             assert(entity < MAX_ENTITIES);
+
             return m_signatures.at(entity);
         }
     private:
 
         std::queue<Entity> m_availableIds;
         u32 m_entitiesCount = 0;
-        std::array<Signature, MAX_COMPONENTS> m_signatures;
+        std::array<Signature, MAX_ENTITIES> m_signatures;
     };
 
     inline std::unique_ptr<EntityManager> g_entityManager;
@@ -261,6 +262,7 @@ namespace ECS {
         signature.set(g_componentManager->getComponentID<T>(), true);
         g_entityManager->setSignature(entity, signature);
         g_systemManager->entitySignatureChanged(entity, signature);
+
     }
 
     inline Entity createEntity() {

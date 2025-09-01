@@ -113,10 +113,11 @@ const Pipeline * Renderer3D::getPipeline() const {
 }
 
 void Renderer3D::createPipeline() {
-    m_pipeline = Pipeline::Builder(m_engine)
-        .addShaderStage("shaders/shader.vert.spv")
+	m_pipeline = Pipeline::Builder(m_engine)
+		.addShaderStage("shaders/shader.vert.spv")
         .addShaderStage("shaders/shader.frag.spv")
         .setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
+
         .addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
         .addBinding(0, 1, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment) // frame data - lights & camera
 
@@ -126,7 +127,7 @@ void Renderer3D::createPipeline() {
         .addBinding(1, 3, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - normal
 
         .addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex) // model data
-        .create();
+		.create();
 }
 
 void Renderer3D::createDepthBuffer() {

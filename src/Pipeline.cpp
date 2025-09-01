@@ -9,10 +9,6 @@ Pipeline::Builder::Builder(VulkanEngine* engine) : m_engine(engine) {
 	};
 
 	m_dynamicStates = { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
-	m_dynamicState = {
-		.dynamicStateCount = static_cast<u32>(m_dynamicStates.size()),
-		.pDynamicStates = m_dynamicStates.data()
-	};
 
 	m_viewportState = {
 		.viewportCount = 1,
@@ -94,6 +90,16 @@ Pipeline::Builder & Pipeline::Builder::addBinding(u32 set, u32 binding, vk::Desc
 	return *this;
 }
 
+Pipeline::Builder & Pipeline::Builder::addDynamicState(const vk::DynamicState state) {
+	m_dynamicStates.push_back(state);
+	return *this;
+}
+
+Pipeline::Builder & Pipeline::Builder::setPolygonMode(const vk::PolygonMode polygonMode) {
+	m_rasterizer.polygonMode = polygonMode;
+	return *this;
+}
+
 std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 	assert(m_shaders.contains(vk::ShaderStageFlagBits::eVertex));
 	assert(m_shaders.contains(vk::ShaderStageFlagBits::eFragment));
@@ -110,7 +116,7 @@ std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 		cLayouts.push_back(*descriptorLayouts.back());
 	}
 
-	vk::PipelineLayoutCreateInfo pipelineLayoutInfo = {
+	const vk::PipelineLayoutCreateInfo pipelineLayoutInfo = {
 		.setLayoutCount = static_cast<u32>(cLayouts.size()),
 		.pSetLayouts = cLayouts.data(),
 	};
@@ -126,6 +132,11 @@ std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 		});
 	}
 
+	const vk::PipelineDynamicStateCreateInfo dynamicState = {
+		.dynamicStateCount = static_cast<u32>(m_dynamicStates.size()),
+		.pDynamicStates = m_dynamicStates.data()
+	};
+
 	const std::array colourFormats = { m_engine->getSwapColourFormat() };
 	vk::StructureChain chain = {
 		vk::GraphicsPipelineCreateInfo {
@@ -138,7 +149,7 @@ std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 			.pMultisampleState = &m_multisampling,
 			.pDepthStencilState = &m_depthStencil,
 			.pColorBlendState = &m_colorBlending,
-			.pDynamicState = &m_dynamicState,
+			.pDynamicState = &dynamicState,
 			.layout = pipelineLayout,
 			.subpass = 0
 		},
@@ -158,10 +169,10 @@ std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 }
 
 Pipeline::Pipeline(VulkanEngine* engine, vk::raii::Pipeline pipeline, vk::raii::PipelineLayout layout, std::vector<vk::raii::DescriptorSetLayout> descriptorSetLayouts)
-	:   m_engine(engine),
-		m_pipeline(std::move(pipeline)),
-		m_layout(std::move(layout)),
-		m_descriptorLayouts(std::move(descriptorSetLayouts))
+	: m_engine(engine)
+	, m_pipeline(std::move(pipeline))
+	, m_layout(std::move(layout))
+	, m_descriptorLayouts(std::move(descriptorSetLayouts))
 {}
 
 vk::raii::DescriptorSet Pipeline::createDescriptorSet(const u32 set) const {

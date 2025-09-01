@@ -1,16 +1,12 @@
 #include "Texture.h"
 
+#include <vulkan/vulkan_format_traits.hpp>
+
 #include "VulkanEngine.h"
 
-Texture::Texture(const VulkanEngine *engine, const unsigned char *pixels, u32 width, u32 height, vk::Format format) {
-    u32 bitdepth;
-    switch (format) {
-        case vk::Format::eR8G8B8Unorm:
-            bitdepth = 3;
-        default:
-            bitdepth = 4;
-    }
-
+Texture::Texture(const VulkanEngine *engine, const unsigned char *pixels, u32 width, u32 height, vk::Format format, const SamplerInfo& samplerInfo) {
+    assert(vk::componentCount(format) == 4 && vk::componentBits(format, 0) == 8);
+    constexpr u32 bitdepth = 4;
     vk::DeviceSize imageSize = width * height * bitdepth;
 
     auto [stagingBuffer, stagingBufferMemory] = engine->createBuffer(imageSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
@@ -48,13 +44,13 @@ Texture::Texture(const VulkanEngine *engine, const unsigned char *pixels, u32 wi
 
     m_imageView = vk::raii::ImageView(engine->getDevice(), viewInfo);
 
-    vk::SamplerCreateInfo samplerInfo = {
-        .magFilter = vk::Filter::eLinear,
-        .minFilter = vk::Filter::eLinear,
+    vk::SamplerCreateInfo samplerCreateInfo = {
+        .magFilter = samplerInfo.magFilter,
+        .minFilter = samplerInfo.minFilter,
         .mipmapMode = vk::SamplerMipmapMode::eLinear,
-        .addressModeU = vk::SamplerAddressMode::eRepeat,
-        .addressModeV = vk::SamplerAddressMode::eRepeat,
-        .addressModeW = vk::SamplerAddressMode::eRepeat,
+        .addressModeU = samplerInfo.wrapU,
+        .addressModeV = samplerInfo.wrapV,
+        .addressModeW = samplerInfo.wrapW,
         .mipLodBias = 0.0f,
         .anisotropyEnable = vk::True,
         .maxAnisotropy = engine->getPhysicalDevice().getProperties().limits.maxSamplerAnisotropy,
@@ -65,7 +61,7 @@ Texture::Texture(const VulkanEngine *engine, const unsigned char *pixels, u32 wi
         .unnormalizedCoordinates = vk::False
     };
 
-    m_sampler = vk::raii::Sampler(engine->getDevice(), samplerInfo);
+    m_sampler = vk::raii::Sampler(engine->getDevice(), samplerCreateInfo);
 }
 
 const vk::raii::Image & Texture::getImage() const {

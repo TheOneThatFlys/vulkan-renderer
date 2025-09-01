@@ -23,36 +23,10 @@ AssetManager::AssetManager(VulkanEngine* engine) : m_engine(engine) {
     m_normal1x1Texture = m_textures.back().get();
 }
 
-void AssetManager::load(const char* root) {
-    const auto startTime = std::chrono::high_resolution_clock::now();
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(root)) {
-        const std::filesystem::path& filepath = entry.path();
-
-        std::string path = filepath.generic_string();
-        std::string extension = filepath.extension().generic_string();
-
-        // model
-        if (extension == ".glb") {
-            Logger::info(std::format("Loading model at {}", path));
-            loadGLB(path);
-        }
-        // image
-        else if (extension == ".jpg" || extension == ".png") {
-            Logger::info(std::format("Loading texture at {}", path));
-            loadImage(path);
-        }
-        else {
-            Logger::info(std::format("Found asset at {} which is not supported", path));
-        }
-    }
-
-    const auto endTime = std::chrono::high_resolution_clock::now();
-    const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-    Logger::info(std::format("Loaded assets in {} ms", duration.count()));
-}
-
 // Load glb file and return the root entity
-void AssetManager::loadGLB(const std::string& path) {
+ECS::Entity AssetManager::loadGLB(const std::string& path) {
+    auto startTime = std::chrono::high_resolution_clock::now();
+
     tinygltf::Model ctx;
     std::string error, warning;
     m_loader.LoadBinaryFromFile(&ctx, &error, &warning, path);
@@ -60,6 +34,8 @@ void AssetManager::loadGLB(const std::string& path) {
         Logger::error(error);
     if (!warning.empty())
         Logger::warn(warning);
+
+    auto loadTime = std::chrono::high_resolution_clock::now();
 
     // temp pointers to resolve arrays
     std::vector<Texture*> textures;
@@ -82,7 +58,9 @@ void AssetManager::loadGLB(const std::string& path) {
                 return fallback;
             }
             const tinygltf::Texture& texture = ctx.textures[index];
+            const tinygltf::Sampler& sampler = ctx.samplers[texture.sampler];
             const tinygltf::Image& source = ctx.images[texture.source];
+
             m_textures.push_back(std::make_unique<Texture>(m_engine, source.image.data(), source.width, source.height, format));
             return m_textures.back().get();
         };
@@ -109,19 +87,30 @@ void AssetManager::loadGLB(const std::string& path) {
     if (scene.nodes.empty())
         Logger::warn("Loaded scene contained no nodes");
 
-    std::stack<std::tuple<i32, ECS::Entity>> nodesToVisit;
-    for (i32 nodeID : ctx.scenes[0].nodes) {
-        nodesToVisit.emplace(nodeID, -1);
+    ECS::Entity root;
+    if (scene.nodes.size() == 1) {
+        root = -1;
     }
-    u32 i = 0;
+    else {
+        root = ECS::createEntity();
+        HierarchyComponent::addEmpty(root);
+        ECS::addComponent<NamedComponent>(root, {path});
+        ECS::addComponent<Transform>(root, {});
+    }
+    std::stack<std::tuple<i32, ECS::Entity>> nodesToVisit;
+    for (i32 nodeID : scene.nodes) {
+        nodesToVisit.emplace(nodeID, root);
+    }
+
     while (!nodesToVisit.empty()) {
-        ++i;
         auto [nodeID, parent] = nodesToVisit.top();
         nodesToVisit.pop();
         const tinygltf::Node& node = ctx.nodes[nodeID];
 
         // create entity
         ECS::Entity entity = ECS::createEntity();
+        if (root == -1) root = entity;
+
         // add model if it exists
         if (node.mesh != -1) {
             ECS::addComponent<Model3D>(entity, {meshes[node.mesh], materials[ctx.meshes[node.mesh].primitives[0].material]});
@@ -153,6 +142,12 @@ void AssetManager::loadGLB(const std::string& path) {
             nodesToVisit.emplace(child, entity);
         }
     }
+
+    auto endTime = std::chrono::high_resolution_clock::now();
+
+    Logger::info("Loaded '{}' in {} ms [read = {} ms]", path, std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime).count(), std::chrono::duration_cast<std::chrono::milliseconds>(loadTime-startTime).count());
+
+    return root;
 }
 
 std::unique_ptr<Mesh> AssetManager::loadMesh(const tinygltf::Model& ctx, const tinygltf::Mesh &mesh) {
@@ -161,39 +156,36 @@ std::unique_ptr<Mesh> AssetManager::loadMesh(const tinygltf::Model& ctx, const t
     }
     const tinygltf::Primitive& primitive = mesh.primitives.at(0);
 
-    const auto loadBuffer = [&](u32 accessorIndex) -> std::tuple<const tinygltf::Accessor&, const tinygltf::BufferView&, const tinygltf::Buffer&> {
+    const auto loadBuffer = [&](u32 accessorIndex, u32 componentType, u32 type) -> const unsigned char* {
         const tinygltf::Accessor& accessor = ctx.accessors[accessorIndex];
         const tinygltf::BufferView& bufferView = ctx.bufferViews[accessor.bufferView];
         const tinygltf::Buffer& buffer = ctx.buffers[bufferView.buffer];
-        return {accessor, bufferView, buffer};
+        validateAccessor(accessor, componentType, type);
+        return &buffer.data[accessor.byteOffset + bufferView.byteOffset];
     };
+
+    bool hasUVs = primitive.attributes.contains("TEXCOORD_0");
+    if (!hasUVs) Logger::warn("{} does not contain TEXCOORD_0 attribute", mesh.name);
+
     // load vertex info
-    assert(primitive.attributes.contains("POSITION"));
-    assert(primitive.attributes.contains("TEXCOORD_0"));
-    assert(primitive.attributes.contains("NORMAL"));
-    assert(primitive.attributes.contains("TANGENT"));
+    if (!primitive.attributes.contains("POSITION")) Logger::error("{} does not contain POSITION attribute", mesh.name);
+    if (!primitive.attributes.contains("NORMAL")) Logger::error("{} does not contain NORMAL attribute", mesh.name);
+    if (!primitive.attributes.contains("TANGENT")) Logger::error("{} does not contain TANGENT attribute", mesh.name);
 
+    const unsigned char* positions = loadBuffer(primitive.attributes.at("POSITION"), TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC3);
+    const unsigned char* uvs = hasUVs ? loadBuffer(primitive.attributes.at("TEXCOORD_0"), TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC2) : nullptr;
+    const unsigned char* normals = loadBuffer(primitive.attributes.at("NORMAL"), TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC3);
+    const unsigned char* tangents = loadBuffer(primitive.attributes.at("TANGENT"), TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC4);
+
+    constexpr float nullUVs[] = {0.0f, 0.0f};
     std::vector<Vertex> vertices;
-    const auto& [positionAccessor, positionBufferView, positionBuffer] = loadBuffer(primitive.attributes.at("POSITION"));
-    const auto& [uvAccessor, uvBufferView, uvBuffer] = loadBuffer(primitive.attributes.at("TEXCOORD_0"));
-    const auto& [normalAccessor, normalBufferView, normalBuffer] = loadBuffer(primitive.attributes.at("NORMAL"));
-    const auto& [tangentAccessor, tangentBufferView, tangentBuffer] = loadBuffer(primitive.attributes.at("TANGENT"));
-
-    validateAccessor(positionAccessor, TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC3);
-    validateAccessor(uvAccessor, TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC2);
-    validateAccessor(normalAccessor, TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC3);
-    validateAccessor(tangentAccessor, TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC4);
-
-    vertices.reserve(positionAccessor.count);
-    const size_t positionStart = positionAccessor.byteOffset + positionBufferView.byteOffset;
-    const size_t uvStart = uvAccessor.byteOffset + uvBufferView.byteOffset;
-    const size_t normalStart = normalAccessor.byteOffset + normalBufferView.byteOffset;
-    const size_t tangentStart = tangentAccessor.byteOffset + tangentBufferView.byteOffset;
-    for (u32 i = 0; i < positionAccessor.count; ++i) {
-        const auto pos = reinterpret_cast<const float*>(&positionBuffer.data[positionStart + i * 12]);
-        const auto uv = reinterpret_cast<const float*>(&uvBuffer.data[uvStart + i * 8]);
-        const auto normal = reinterpret_cast<const float*>(&normalBuffer.data[normalStart + i * 12]);
-        const auto tangent = reinterpret_cast<const float*>(&tangentBuffer.data[tangentStart + i * 16]);
+    u32 numberOfVertices = ctx.accessors[primitive.attributes.at("POSITION")].count;
+    vertices.reserve(numberOfVertices);
+    for (u32 i = 0; i < numberOfVertices; ++i) {
+        const auto pos = reinterpret_cast<const float*>(&positions[i * 12]);
+        const auto uv = hasUVs ? reinterpret_cast<const float*>(&uvs[i * 8]) : nullUVs;
+        const auto normal = reinterpret_cast<const float*>(&normals[i * 12]);
+        const auto tangent = reinterpret_cast<const float*>(&tangents[i * 16]);
         vertices.emplace_back(
             glm::vec3(pos[0], pos[1], pos[2]), // position
             glm::vec2(uv[0], uv[1]), // uv
@@ -201,7 +193,6 @@ std::unique_ptr<Mesh> AssetManager::loadMesh(const tinygltf::Model& ctx, const t
             glm::vec3(tangent[0], tangent[1], tangent[2]) // tangent
         );
     }
-
     // load indexes
     const tinygltf::Accessor& indexAccessor = ctx.accessors[primitive.indices];
     const tinygltf::BufferView& indexBufferView = ctx.bufferViews[indexAccessor.bufferView];
@@ -227,11 +218,11 @@ std::unique_ptr<Mesh> AssetManager::loadMesh(const tinygltf::Model& ctx, const t
             const auto index = *reinterpret_cast<const u16*>(&indexBuffer.data[indexStart + i * 2]);
             indexes.emplace_back(index);
         }
-
         return std::make_unique<Mesh>(m_engine, vertices, indexes);
     }
 
     Logger::error(std::format("Unknown index type: {}", indexAccessor.componentType));
+
     return nullptr;
 }
 

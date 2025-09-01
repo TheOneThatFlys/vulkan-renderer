@@ -180,9 +180,9 @@ void VulkanEngine::initECS() {
 }
 
 void VulkanEngine::createScene() const {
-	m_assetManager->load("assets");
+	// m_assetManager->load("assets");
 
-	ECS::Entity sphere = ECS::getSystem<EntitySearcher>()->find("Icosphere").value();
+	ECS::Entity sphere = m_assetManager->loadGLB("assets/icosphere.glb");
 	ECS::addComponent<PointLight>(sphere, {
 		.colour = glm::vec3(1.0f, 1.0f, 1.0f),
 		.strength = 200.0f
@@ -190,6 +190,9 @@ void VulkanEngine::createScene() const {
 	auto &sphereTransform = ECS::getComponent<Transform>(sphere);
 	sphereTransform.scale = glm::vec3(0.1f);
 	sphereTransform.position = glm::vec3(0.0f, 10.0f, 0.0f);
+
+	ECS::Entity map = m_assetManager->loadGLB("assets/cs_office.glb");
+	ECS::getComponent<Transform>(map).scale = glm::vec3(0.01f);
 }
 
 void VulkanEngine::createInstance() {
@@ -357,13 +360,13 @@ void VulkanEngine::createQueryPool() {
 
 void VulkanEngine::createDescriptorPool() {
 	std::array poolSizes = {
-		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBuffer, 4},
-		vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler, 4},
-		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBufferDynamic, 4}
+		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBuffer, 64},
+		vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler, 64},
+		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBufferDynamic, 64}
 	};
 	vk::DescriptorPoolCreateInfo poolInfo = {
 		.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-		.maxSets = 64,
+		.maxSets = 256,
 		.poolSizeCount = static_cast<u32>(poolSizes.size()),
 		.pPoolSizes = poolSizes.data(),
 	};
@@ -711,7 +714,7 @@ void VulkanEngine::drawFrame() const {
 	recordCommandBuffer(m_commandBuffer, imageIndex);
 
 	vk::PipelineStageFlags waitStages[] = { vk::PipelineStageFlagBits::eColorAttachmentOutput };
-	vk::SubmitInfo submitInfo{
+	const vk::SubmitInfo submitInfo = {
 		.waitSemaphoreCount = 1,
 		.pWaitSemaphores = &*m_imageAvailableSemaphore,
 		.pWaitDstStageMask = waitStages,
@@ -723,7 +726,7 @@ void VulkanEngine::drawFrame() const {
 
 	m_graphicsQueue.submit(submitInfo, m_inFlightFence);
 
-	vk::PresentInfoKHR presentInfo{
+	const vk::PresentInfoKHR presentInfo = {
 		.waitSemaphoreCount = 1,
 		.pWaitSemaphores = &*m_renderFinishedSemaphores[imageIndex],
 		.swapchainCount = 1,

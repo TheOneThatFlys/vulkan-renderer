@@ -13,6 +13,8 @@ public:
         Builder& setVertexInfo(const vk::VertexInputBindingDescription& bindings, const std::vector<vk::VertexInputAttributeDescription>& attributes);
         Builder& addShaderStage(std::string path);
         Builder& addBinding(u32 set, u32 binding, vk::DescriptorType type, vk::ShaderStageFlagBits stage);
+        Builder& addDynamicState(vk::DynamicState state);
+        Builder& setPolygonMode(vk::PolygonMode polygonMode);
         std::unique_ptr<Pipeline> create();
     private:
 
@@ -24,7 +26,6 @@ public:
 
         vk::PipelineInputAssemblyStateCreateInfo m_inputAssembly;
         std::vector<vk::DynamicState> m_dynamicStates;
-        vk::PipelineDynamicStateCreateInfo m_dynamicState;
         vk::PipelineViewportStateCreateInfo m_viewportState;
         vk::PipelineRasterizationStateCreateInfo m_rasterizer;
         vk::PipelineMultisampleStateCreateInfo m_multisampling;
@@ -36,10 +37,6 @@ public:
     };
 
     Pipeline(VulkanEngine* engine, vk::raii::Pipeline pipeline, vk::raii::PipelineLayout layout, std::vector<vk::raii::DescriptorSetLayout> descriptorSetLayouts);
-    Pipeline(Pipeline&) = delete;
-    Pipeline(Pipeline&&) = default;
-    Pipeline& operator=(Pipeline&) = delete;
-    Pipeline& operator=(Pipeline&&) = default;
     vk::raii::DescriptorSet createDescriptorSet(u32 set) const;
     const vk::raii::Pipeline& getPipeline() const;
     const vk::raii::PipelineLayout& getLayout() const;

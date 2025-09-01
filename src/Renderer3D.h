@@ -23,7 +23,7 @@ struct FragFrameData {
     u32 nLights;
 };
 
-class Renderer3D : public ECS::System {
+class Renderer3D final : public ECS::System {
 public:
     explicit Renderer3D(VulkanEngine *engine, vk::Extent2D extent);
     void render(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image, const vk::ImageView &imageView);
@@ -38,7 +38,6 @@ private:
     vk::Extent2D m_extent;
 
     std::unique_ptr<Pipeline> m_pipeline = nullptr;
-    vk::raii::RenderPass m_renderPass = nullptr;
 
     vk::raii::Image m_depthBuffer = nullptr;
     vk::raii::DeviceMemory m_depthBufferMemory = nullptr;
