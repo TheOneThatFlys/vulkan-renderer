@@ -72,6 +72,7 @@ void Renderer3D::render(const vk::raii::CommandBuffer &commandBuffer, const vk::
     };
     commandBuffer.setViewport(0, viewport);
     commandBuffer.setScissor(0, scissor);
+	commandBuffer.setPolygonModeEXT(m_polygonMode);
 
     const auto camera = ECS::getSystem<ControlledCameraSystem>();
     m_frameUniforms.setData({
@@ -117,6 +118,7 @@ void Renderer3D::createPipeline() {
 		.addShaderStage("shaders/shader.vert.spv")
         .addShaderStage("shaders/shader.frag.spv")
         .setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
+		.addDynamicState(vk::DynamicState::ePolygonModeEXT)
 
         .addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
         .addBinding(0, 1, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment) // frame data - lights & camera

@@ -110,7 +110,7 @@ const vk::raii::DescriptorPool & VulkanEngine::getDescriptorPool() const {
 	return m_descriptorPool;
 }
 
-const Renderer3D* VulkanEngine::getRenderer() const {
+Renderer3D* VulkanEngine::getRenderer() const {
 	return m_renderer;
 }
 
@@ -242,6 +242,7 @@ void VulkanEngine::createLogicalDevice() {
 	}
 
 	vk::PhysicalDeviceFeatures deviceFeatures = {
+		.fillModeNonSolid = vk::True,
 		.samplerAnisotropy = vk::True
 	};
 	vk::StructureChain createInfo = {
@@ -254,6 +255,9 @@ void VulkanEngine::createLogicalDevice() {
 		},
 		vk::PhysicalDeviceDynamicRenderingFeatures {
 			.dynamicRendering = vk::True
+		},
+		vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT {
+			.extendedDynamicState3PolygonMode = true
 		}
 	};
 

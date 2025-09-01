@@ -30,6 +30,9 @@ public:
 
     const Pipeline* getPipeline() const;
 
+    void setPolygonMode(vk::PolygonMode mode) { m_polygonMode = mode; }
+    vk::PolygonMode getPolygonMode() const { return m_polygonMode; }
+
 private:
     void createPipeline();
     void createDepthBuffer();
@@ -51,4 +54,6 @@ private:
     UniformBufferBlock<FrameUniforms> m_frameUniforms;
     DynamicUniformBufferBlock<ModelUniforms> m_modelUniforms;
     UniformBufferBlock<FragFrameData> m_fragFrameUniforms;
+
+    vk::PolygonMode m_polygonMode = vk::PolygonMode::eFill;
 };

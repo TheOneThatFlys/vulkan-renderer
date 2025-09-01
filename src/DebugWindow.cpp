@@ -7,6 +7,7 @@
 #include <ranges>
 
 #include "Components.h"
+#include "Renderer3D.h"
 #include "VulkanEngine.h"
 
 void SceneGraphDisplaySystem::draw() const {
@@ -228,6 +229,15 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
             size_t totalGB = m_vramUsage.gpuAvailable;
             std::string progress = std::format("{} / {}", storageSizeToString(usedGB), storageSizeToString(totalGB));
             ImGui::ProgressBar(static_cast<float>(usedGB) / static_cast<float>(totalGB), ImVec2(0.0f, 0.0f), progress.c_str());
+
+            ImGui::EndTabItem();
+        }
+
+        if (ImGui::BeginTabItem("Render")) {
+            ImGui::SeparatorText("Rasterizer");
+            bool isWireframe = m_engine->getRenderer()->getPolygonMode() == vk::PolygonMode::eLine;
+            if (ImGui::Checkbox("Wireframes", &isWireframe))
+                m_engine->getRenderer()->setPolygonMode(isWireframe ? vk::PolygonMode::eLine : vk::PolygonMode::eFill);
 
             ImGui::EndTabItem();
         }

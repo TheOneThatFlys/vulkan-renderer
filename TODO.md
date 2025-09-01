@@ -15,5 +15,6 @@
 ### Small Optimisations (low prio.)
 
 - Change normal matrix to use mat3 with correct alignment
-- Seperate systems into folder structure?
+- Separate systems into folder structure?
+- Separate wireframe mode into another pipeline to increase performance
 

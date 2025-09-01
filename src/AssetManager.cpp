@@ -10,6 +10,17 @@
 
 #include "Components.h"
 
+static std::unordered_map<u32, vk::SamplerAddressMode> g_wrapModeMap = {
+    {TINYGLTF_TEXTURE_WRAP_REPEAT, vk::SamplerAddressMode::eRepeat},
+    {TINYGLTF_TEXTURE_WRAP_CLAMP_TO_EDGE, vk::SamplerAddressMode::eClampToEdge},
+    {TINYGLTF_TEXTURE_WRAP_MIRRORED_REPEAT, vk::SamplerAddressMode::eMirroredRepeat}
+};
+
+static std::unordered_map<u32, vk::Filter> g_filterModeMap = {
+    {TINYGLTF_TEXTURE_FILTER_LINEAR, vk::Filter::eLinear},
+    {TINYGLTF_TEXTURE_FILTER_NEAREST, vk::Filter::eNearest},
+};
+
 AssetManager::AssetManager(VulkanEngine* engine) : m_engine(engine) {
     stbi_set_flip_vertically_on_load(true);
 
@@ -61,7 +72,23 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
             const tinygltf::Sampler& sampler = ctx.samplers[texture.sampler];
             const tinygltf::Image& source = ctx.images[texture.source];
 
-            m_textures.push_back(std::make_unique<Texture>(m_engine, source.image.data(), source.width, source.height, format));
+            SamplerInfo samplerInfo;
+            samplerInfo.wrapU = g_wrapModeMap.at(sampler.wrapS);
+            samplerInfo.wrapV = g_wrapModeMap.at(sampler.wrapT);
+
+            auto resolveFilter = [&](const i32 filterType) -> vk::Filter {
+                if (filterType == -1) return vk::Filter::eNearest;
+                if (!g_filterModeMap.contains(filterType)) {
+                    // Logger::warn("Unsupported filter type: {}", filterType);
+                    return vk::Filter::eNearest;
+                }
+                return g_filterModeMap.at(filterType);
+            };
+
+            samplerInfo.minFilter = resolveFilter(sampler.minFilter);
+            samplerInfo.magFilter = resolveFilter(sampler.magFilter);
+
+            m_textures.push_back(std::make_unique<Texture>(m_engine, source.image.data(), source.width, source.height, format, samplerInfo));
             return m_textures.back().get();
         };
 

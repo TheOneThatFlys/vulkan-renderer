@@ -28,7 +28,8 @@ constexpr std::array<const char*, 0> instanceExtensions = {
 constexpr std::array deviceExtensions = {
 	vk::KHRSwapchainExtensionName,
 	vk::EXTMemoryBudgetExtensionName,
-	vk::KHRDynamicRenderingExtensionName
+	vk::KHRDynamicRenderingExtensionName,
+	vk::EXTExtendedDynamicState3ExtensionName
 };
 
 #ifdef NDEBUG
@@ -61,7 +62,7 @@ public:
 	const vk::raii::Device& getDevice() const;
 	const vk::raii::PhysicalDevice& getPhysicalDevice() const;
 	const vk::raii::DescriptorPool& getDescriptorPool() const;
-	const Renderer3D *getRenderer() const;
+	Renderer3D *getRenderer() const;
 
 	vk::Format getSwapColourFormat() const;
 	vk::Format getDepthFormat() const;
