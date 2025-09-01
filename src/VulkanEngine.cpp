@@ -110,8 +110,16 @@ const vk::raii::DescriptorPool & VulkanEngine::getDescriptorPool() const {
 	return m_descriptorPool;
 }
 
-const Pipeline* VulkanEngine::getPipeline() const {
-	return m_pipeline.get();
+const Renderer3D* VulkanEngine::getRenderer() const {
+	return m_renderer;
+}
+
+vk::Format VulkanEngine::getSwapColourFormat() const {
+	return vk::Format::eB8G8R8A8Unorm;
+}
+
+vk::Format VulkanEngine::getDepthFormat() const {
+	return vk::Format::eD32Sfloat;
 }
 
 void VulkanEngine::initWindow() {
@@ -134,20 +142,16 @@ void VulkanEngine::initVulkan() {
 	createLogicalDevice();
 	createSwapChain();
 	createImageViews();
-	createRenderPass();
-	createGraphicsPipeline();
 	createCommandPool();
 	createCommandBuffers();
 	createQueryPool();
-	createDepthResources();
-	createFramebuffers();
 	createDescriptorPool();
 	createSyncObjects();
 }
 
 void VulkanEngine::initECS() {
 	ECS::init();
-	m_debugWindow = std::make_unique<DebugWindow>(this, m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue, m_renderPass);
+	m_debugWindow = std::make_unique<DebugWindow>(this, m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue);
 	m_assetManager = std::make_unique<AssetManager>(this);
 
 	InputManager::setWindow(m_window);
@@ -165,7 +169,7 @@ void VulkanEngine::initECS() {
 	m_updatables.push_back(ECS::registerSystem<ControlledCameraSystem>(m_window));
 	ECS::setSystemSignature<ControlledCameraSystem>(ECS::createSignature<ControlledCamera>());
 
-	m_renderer = ECS::registerSystem<Renderer3D>(this, m_pipeline.get());
+	m_renderer = ECS::registerSystem<Renderer3D>(this, m_swapExtent);
 	ECS::setSystemSignature<Renderer3D>(ECS::createSignature<Transform, Model3D>());
 
 	m_updatables.push_back(ECS::registerSystem<TransformSystem>());
@@ -237,15 +241,20 @@ void VulkanEngine::createLogicalDevice() {
 	vk::PhysicalDeviceFeatures deviceFeatures = {
 		.samplerAnisotropy = vk::True
 	};
-	vk::DeviceCreateInfo deviceCreateInfo = {
-		.queueCreateInfoCount = static_cast<u32>(queueCreateInfos.size()),
-		.pQueueCreateInfos = queueCreateInfos.data(),
-		.enabledExtensionCount = static_cast<u32>(deviceExtensions.size()),
-		.ppEnabledExtensionNames = deviceExtensions.data(),
-		.pEnabledFeatures = &deviceFeatures,
+	vk::StructureChain createInfo = {
+		vk::DeviceCreateInfo {
+			.queueCreateInfoCount = static_cast<u32>(queueCreateInfos.size()),
+			.pQueueCreateInfos = queueCreateInfos.data(),
+			.enabledExtensionCount = static_cast<u32>(deviceExtensions.size()),
+			.ppEnabledExtensionNames = deviceExtensions.data(),
+			.pEnabledFeatures = &deviceFeatures,
+		},
+		vk::PhysicalDeviceDynamicRenderingFeatures {
+			.dynamicRendering = vk::True
+		}
 	};
 
-	m_device = vk::raii::Device(m_physicalDevice, deviceCreateInfo);
+	m_device = vk::raii::Device(m_physicalDevice, createInfo.get<vk::DeviceCreateInfo>());
 	m_graphicsQueue = vk::raii::Queue(m_device, indices.graphicsFamily.value(), 0);
 	m_presentQueue = vk::raii::Queue(m_device, indices.presentFamily.value(), 0);
 }
@@ -262,100 +271,8 @@ void VulkanEngine::createSurface() {
 
 void VulkanEngine::createImageViews() {
 	for (const auto& image : m_swapChain.getImages()) {
-		m_swapImageViews.push_back(createImageView(image, vk::Format::eB8G8R8A8Unorm, vk::ImageAspectFlagBits::eColor));
+		m_swapImageViews.push_back(createImageView(image, getSwapColourFormat(), vk::ImageAspectFlagBits::eColor));
 	}
-}
-
-void VulkanEngine::createFramebuffers() {
-	for (const auto & imageView : m_swapImageViews) {
-		std::array attachments = {*imageView, *m_depthImageView};
-		vk::FramebufferCreateInfo framebufferInfo{
-			.renderPass = m_renderPass,
-			.attachmentCount = static_cast<u32>(attachments.size()),
-			.pAttachments = attachments.data(),
-			.width = m_swapExtent.width,
-			.height = m_swapExtent.height,
-			.layers = 1
-		};
-
-		m_framebuffers.emplace_back(m_device, framebufferInfo);
-	}
-}
-
-void VulkanEngine::createRenderPass() {
-	vk::AttachmentDescription colorAttachment = {
-		.format = vk::Format::eB8G8R8A8Unorm,
-		.samples = vk::SampleCountFlagBits::e1,
-		.loadOp = vk::AttachmentLoadOp::eClear,
-		.storeOp = vk::AttachmentStoreOp::eStore,
-		.stencilLoadOp = vk::AttachmentLoadOp::eDontCare,
-		.stencilStoreOp = vk::AttachmentStoreOp::eDontCare,
-		.initialLayout = vk::ImageLayout::eUndefined,
-		.finalLayout = vk::ImageLayout::ePresentSrcKHR,
-	};
-	vk::AttachmentReference colorAttachmentRef = {
-		.attachment = 0,
-		.layout = vk::ImageLayout::eColorAttachmentOptimal
-	};
-	vk::AttachmentDescription depthAttachment = {
-		.format = vk::Format::eD32Sfloat,
-		.samples = vk::SampleCountFlagBits::e1,
-		.loadOp = vk::AttachmentLoadOp::eClear,
-		.storeOp = vk::AttachmentStoreOp::eDontCare,
-		.stencilLoadOp = vk::AttachmentLoadOp::eDontCare,
-		.stencilStoreOp = vk::AttachmentStoreOp::eDontCare,
-		.initialLayout = vk::ImageLayout::eUndefined,
-		.finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal
-	};
-	vk::AttachmentReference depthAttachmentRef = {
-		.attachment = 1,
-		.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal
-	};
-
-	std::array attachments = {colorAttachment, depthAttachment};
-
-	vk::SubpassDescription subpass = {
-		.pipelineBindPoint = vk::PipelineBindPoint::eGraphics,
-		.colorAttachmentCount = 1,
-		.pColorAttachments = &colorAttachmentRef,
-		.pDepthStencilAttachment = &depthAttachmentRef
-	};
-	vk::SubpassDependency dependency = {
-		.srcSubpass = vk::SubpassExternal,
-		.dstSubpass = 0,
-		.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eLateFragmentTests,
-		.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
-		.srcAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentWrite,
-		.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite,
-	};
-	vk::RenderPassCreateInfo renderPassInfo = {
-		.attachmentCount = static_cast<u32>(attachments.size()),
-		.pAttachments = attachments.data(),
-		.subpassCount = 1,
-		.pSubpasses = &subpass,
-		.dependencyCount = 1,
-		.pDependencies = &dependency,
-	};
-	m_renderPass = vk::raii::RenderPass(m_device, renderPassInfo);
-
-}
-
-void VulkanEngine::createGraphicsPipeline() {
-	m_pipeline = Pipeline::Builder(this)
-		.addShaderStage("shaders/shader.vert.spv")
-		.addShaderStage("shaders/shader.frag.spv")
-		.attachRenderPass(m_renderPass)
-		.setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
-		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
-		.addBinding(0, 1, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment) // frame data - lights & camera
-
-		.addBinding(1, 0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - base
-		.addBinding(1, 1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - mr
-		.addBinding(1, 2, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - ao
-		.addBinding(1, 3, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - normal
-
-		.addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex) // model data
-		.create();
 }
 
 void VulkanEngine::createSwapChain() {
@@ -369,7 +286,7 @@ void VulkanEngine::createSwapChain() {
 	vk::SwapchainCreateInfoKHR createInfo = {
 		.surface = m_surface,
 		.minImageCount = imageCount,
-		.imageFormat = vk::Format::eB8G8R8A8Unorm,
+		.imageFormat = getSwapColourFormat(),
 		.imageColorSpace = vk::ColorSpaceKHR::eSrgbNonlinear,
 		.imageExtent = m_swapExtent,
 		.imageArrayLayers = 1,
@@ -451,19 +368,6 @@ void VulkanEngine::createDescriptorPool() {
 		.pPoolSizes = poolSizes.data(),
 	};
 	m_descriptorPool = m_device.createDescriptorPool(poolInfo);
-}
-
-void VulkanEngine::createDepthResources() {
-	std::tie(m_depthImage, m_depthImageMemory) = createImage(
-		m_swapExtent.width,
-		m_swapExtent.height,
-		vk::Format::eD32Sfloat,
-		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eDepthStencilAttachment,
-		vk::MemoryPropertyFlagBits::eDeviceLocal
-	);
-
-	m_depthImageView = createImageView(m_depthImage, vk::Format::eD32Sfloat, vk::ImageAspectFlagBits::eDepth);
 }
 
 std::vector<const char*> VulkanEngine::getRequiredExtensions() {
@@ -583,48 +487,10 @@ vk::raii::ImageView VulkanEngine::createImageView(vk::Image image, vk::Format fo
 }
 
 void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, const u32 imageIndex) const {
-	vk::CommandBufferBeginInfo beginInfo;
-	commandBuffer.begin(beginInfo);
+	commandBuffer.begin({});
 	commandBuffer.resetQueryPool(m_queryPool, 0, 2);
 	commandBuffer.writeTimestamp(vk::PipelineStageFlagBits::eTopOfPipe, m_queryPool, 0);
-	std::array<vk::ClearValue, 2> clearValues = {
-		vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f),
-		vk::ClearDepthStencilValue(1.0f, 0)
-	};
-
-	vk::RenderPassBeginInfo renderPassInfo = {
-		.renderPass = m_renderPass,
-		.framebuffer = m_framebuffers[imageIndex],
-		.renderArea{
-			.offset = {0, 0},
-			.extent = m_swapExtent,
-		},
-		.clearValueCount = static_cast<u32>(clearValues.size()),
-		.pClearValues = clearValues.data(),
-	};
-	commandBuffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
-	commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline->getPipeline());
-	vk::Viewport viewport = {
-		.x = 0.0f,
-		.y = 0.0f,
-		.width = static_cast<float>(m_swapExtent.width),
-		.height = static_cast<float>(m_swapExtent.height),
-		.minDepth = 0.0f,
-		.maxDepth = 1.0f
-	};
-	vk::Rect2D scissor = {
-		.offset = {0, 0},
-		.extent = m_swapExtent
-	};
-	commandBuffer.setViewport(0, { viewport });
-	commandBuffer.setScissor(0, { scissor });
-
-	m_renderer->render(commandBuffer);
-
-	m_debugWindow->draw(commandBuffer);
-
-	commandBuffer.endRenderPass();
-
+	m_renderer->render(commandBuffer, m_swapChain.getImages().at(imageIndex), m_swapImageViews[imageIndex]);
 	commandBuffer.writeTimestamp(vk::PipelineStageFlagBits::eBottomOfPipe, m_queryPool, 1);
 
 	commandBuffer.end();
@@ -639,7 +505,7 @@ void VulkanEngine::copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize siz
 	endSingleCommand(commandBuffer);
 }
 
-void VulkanEngine::transitionImageLayout(const vk::raii::Image &image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const {
+void VulkanEngine::transitionImageLayout(const vk::Image &image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const {
 	vk::PipelineStageFlags srcStage;
 	vk::PipelineStageFlags dstStage;
 	vk::AccessFlags srcAccess;
@@ -656,6 +522,18 @@ void VulkanEngine::transitionImageLayout(const vk::raii::Image &image, vk::Image
 		dstAccess = vk::AccessFlagBits::eShaderRead;
 		srcStage = vk::PipelineStageFlagBits::eTransfer;
 		dstStage = vk::PipelineStageFlagBits::eFragmentShader;
+	}
+	else if (oldLayout == vk::ImageLayout::eColorAttachmentOptimal && newLayout == vk::ImageLayout::ePresentSrcKHR) {
+		srcAccess = vk::AccessFlagBits::eColorAttachmentWrite;
+		dstAccess = {};
+		srcStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+		dstStage = vk::PipelineStageFlagBits::eBottomOfPipe;
+	}
+	else if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eColorAttachmentOptimal) {
+		srcAccess = {};
+		dstAccess = vk::AccessFlagBits::eColorAttachmentWrite;
+		srcStage = vk::PipelineStageFlagBits::eTopOfPipe;
+		dstStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 	}
 	else {
 		throw std::invalid_argument("Layout transition not supported");

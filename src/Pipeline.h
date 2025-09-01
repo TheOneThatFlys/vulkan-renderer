@@ -11,7 +11,6 @@ public:
     public:
         explicit Builder(VulkanEngine* engine);
         Builder& setVertexInfo(const vk::VertexInputBindingDescription& bindings, const std::vector<vk::VertexInputAttributeDescription>& attributes);
-        Builder& attachRenderPass(vk::RenderPass renderPass);
         Builder& addShaderStage(std::string path);
         Builder& addBinding(u32 set, u32 binding, vk::DescriptorType type, vk::ShaderStageFlagBits stage);
         std::unique_ptr<Pipeline> create();
@@ -34,11 +33,13 @@ public:
         vk::PipelineColorBlendStateCreateInfo m_colorBlending;
 
         std::array<std::vector<vk::DescriptorSetLayoutBinding>, 4> m_descriptorBindings;
-
-        vk::RenderPass m_renderPass = nullptr;
     };
 
     Pipeline(VulkanEngine* engine, vk::raii::Pipeline pipeline, vk::raii::PipelineLayout layout, std::vector<vk::raii::DescriptorSetLayout> descriptorSetLayouts);
+    Pipeline(Pipeline&) = delete;
+    Pipeline(Pipeline&&) = default;
+    Pipeline& operator=(Pipeline&) = delete;
+    Pipeline& operator=(Pipeline&&) = default;
     vk::raii::DescriptorSet createDescriptorSet(u32 set) const;
     const vk::raii::Pipeline& getPipeline() const;
     const vk::raii::PipelineLayout& getLayout() const;

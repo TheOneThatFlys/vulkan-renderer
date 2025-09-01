@@ -67,12 +67,6 @@ Pipeline::Builder& Pipeline::Builder::setVertexInfo(const vk::VertexInputBinding
 	return *this;
 }
 
-Pipeline::Builder & Pipeline::Builder::attachRenderPass(const vk::RenderPass renderPass) {
-	m_renderPass = renderPass;
-
-	return *this;
-}
-
 Pipeline::Builder & Pipeline::Builder::addShaderStage(std::string path) {
 	vk::ShaderStageFlagBits stage;
 	if (path.ends_with(".vert.spv")) {
@@ -86,7 +80,7 @@ Pipeline::Builder & Pipeline::Builder::addShaderStage(std::string path) {
 		stage = vk::ShaderStageFlagBits::eAll;
 	}
 	const std::vector<char> code = readFile(path.c_str());
-	vk::ShaderModuleCreateInfo createInfo = {
+	const vk::ShaderModuleCreateInfo createInfo = {
 		.codeSize = code.size() * sizeof(char),
 		.pCode = reinterpret_cast<const u32*>(code.data())
 	};
@@ -103,7 +97,6 @@ Pipeline::Builder & Pipeline::Builder::addBinding(u32 set, u32 binding, vk::Desc
 std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 	assert(m_shaders.contains(vk::ShaderStageFlagBits::eVertex));
 	assert(m_shaders.contains(vk::ShaderStageFlagBits::eFragment));
-	assert(m_renderPass != nullptr);
 	assert(!m_attributes.empty());
 
 	std::vector<vk::raii::DescriptorSetLayout> descriptorLayouts;
@@ -133,25 +126,32 @@ std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 		});
 	}
 
-	vk::GraphicsPipelineCreateInfo pipelineInfo = {
-		.stageCount = static_cast<u32>(shaderStages.size()),
-		.pStages = shaderStages.data(),
-		.pVertexInputState = &m_vertexInputInfo,
-		.pInputAssemblyState = &m_inputAssembly,
-		.pViewportState = &m_viewportState,
-		.pRasterizationState = &m_rasterizer,
-		.pMultisampleState = &m_multisampling,
-		.pDepthStencilState = &m_depthStencil,
-		.pColorBlendState = &m_colorBlending,
-		.pDynamicState = &m_dynamicState,
-		.layout = pipelineLayout,
-		.renderPass = m_renderPass,
-		.subpass = 0
+	const std::array colourFormats = { m_engine->getSwapColourFormat() };
+	vk::StructureChain chain = {
+		vk::GraphicsPipelineCreateInfo {
+			.stageCount = static_cast<u32>(shaderStages.size()),
+			.pStages = shaderStages.data(),
+			.pVertexInputState = &m_vertexInputInfo,
+			.pInputAssemblyState = &m_inputAssembly,
+			.pViewportState = &m_viewportState,
+			.pRasterizationState = &m_rasterizer,
+			.pMultisampleState = &m_multisampling,
+			.pDepthStencilState = &m_depthStencil,
+			.pColorBlendState = &m_colorBlending,
+			.pDynamicState = &m_dynamicState,
+			.layout = pipelineLayout,
+			.subpass = 0
+		},
+		vk::PipelineRenderingCreateInfo {
+			.colorAttachmentCount = static_cast<u32>(colourFormats.size()),
+			.pColorAttachmentFormats = colourFormats.data(),
+			.depthAttachmentFormat = m_engine->getDepthFormat(),
+		}
 	};
 
 	return std::make_unique<Pipeline>(
 		m_engine,
-		vk::raii::Pipeline(m_engine->getDevice(), nullptr, pipelineInfo),
+		vk::raii::Pipeline(m_engine->getDevice(), nullptr, chain.get<vk::GraphicsPipelineCreateInfo>()),
 		std::move(pipelineLayout),
 		std::move(descriptorLayouts)
 	);

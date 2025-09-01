@@ -137,9 +137,7 @@ void SceneGraphDisplaySystem::drawMatrix(glm::mat4 &matrix) {
     }
 }
 
-DebugWindow::DebugWindow(VulkanEngine* engine, GLFWwindow *window, const vk::raii::Instance& instance, const vk::raii::PhysicalDevice& physicalDevice,
-                         const vk::raii::Device& device, const vk::raii::Queue& queue, const vk::raii::RenderPass& renderPass) {
-
+DebugWindow::DebugWindow(VulkanEngine* engine, GLFWwindow *window, const vk::raii::Instance& instance, const vk::raii::PhysicalDevice& physicalDevice, const vk::raii::Device& device, const vk::raii::Queue& queue) {
     m_engine = engine;
     m_graphDisplay = ECS::registerSystem<SceneGraphDisplaySystem>();
     ECS::setSystemSignature<SceneGraphDisplaySystem>(ECS::createSignature<>()); // views all entities in the ECS
@@ -151,16 +149,23 @@ DebugWindow::DebugWindow(VulkanEngine* engine, GLFWwindow *window, const vk::rai
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
+    auto colourFormat = static_cast<VkFormat>(m_engine->getSwapColourFormat());
     ImGui_ImplVulkan_InitInfo initInfo = {
         .ApiVersion = vk::ApiVersion14,
         .Instance = *instance,
         .PhysicalDevice = *physicalDevice,
         .Device = *device,
         .Queue = *queue,
-        .RenderPass = *renderPass,
         .MinImageCount = 2,
         .ImageCount = 2,
         .DescriptorPoolSize = 64,
+        .UseDynamicRendering = true,
+        .PipelineRenderingCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
+            .colorAttachmentCount = 1,
+            .pColorAttachmentFormats = &colourFormat,
+            .depthAttachmentFormat = static_cast<VkFormat>(m_engine->getDepthFormat()),
+        }
     };
 
     ImGui_ImplVulkan_Init(&initInfo);

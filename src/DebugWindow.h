@@ -22,7 +22,7 @@ private:
 class VulkanEngine;
 class DebugWindow {
 public:
-    DebugWindow(VulkanEngine* engine, GLFWwindow *window, const vk::raii::Instance& instance, const vk::raii::PhysicalDevice& physicalDevice, const vk::raii::Device& device, const vk::raii::Queue& queue, const vk::raii::RenderPass& renderPass);
+    DebugWindow(VulkanEngine* engine, GLFWwindow *window, const vk::raii::Instance& instance, const vk::raii::PhysicalDevice& physicalDevice, const vk::raii::Device& device, const vk::raii::Queue& queue);
     ~DebugWindow();
     void draw(const vk::raii::CommandBuffer& commandBuffer);
 

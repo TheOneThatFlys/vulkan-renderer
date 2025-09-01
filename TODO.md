@@ -2,7 +2,11 @@
 
 ---
 
-- PBR rendering
+- Shadow mapping
+- AA
+- Skybox
+- ssao?
+- IBL D:
 - Change VulkanEngine to global scope?
 - Ray tracing?
 

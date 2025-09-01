@@ -28,6 +28,7 @@ constexpr std::array<const char*, 0> instanceExtensions = {
 constexpr std::array deviceExtensions = {
 	vk::KHRSwapchainExtensionName,
 	vk::EXTMemoryBudgetExtensionName,
+	vk::KHRDynamicRenderingExtensionName
 };
 
 #ifdef NDEBUG
@@ -60,14 +61,17 @@ public:
 	const vk::raii::Device& getDevice() const;
 	const vk::raii::PhysicalDevice& getPhysicalDevice() const;
 	const vk::raii::DescriptorPool& getDescriptorPool() const;
-	const Pipeline* getPipeline() const;
+	const Renderer3D *getRenderer() const;
+
+	vk::Format getSwapColourFormat() const;
+	vk::Format getDepthFormat() const;
 
 	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
 	void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const;
 	std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties) const;
 	vk::raii::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags) const;
 	void copyBufferToImage(const vk::raii::Buffer& buffer, const vk::raii::Image& image, u32 width, u32 height) const;
-	void transitionImageLayout(const vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
+	void transitionImageLayout(const vk::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
 
 private:
 	void initWindow();
@@ -79,16 +83,12 @@ private:
 	void createLogicalDevice();
 	void createSurface();
 	void createImageViews();
-	void createFramebuffers();
-	void createRenderPass();
-	void createGraphicsPipeline();
 	void createSwapChain();
 	void createCommandPool();
 	void createCommandBuffers();
 	void createSyncObjects();
 	void createQueryPool();
 	void createDescriptorPool();
-	void createDepthResources();
 
 	static bool checkValidationLayerSupport();
 	static std::vector<const char*> getRequiredExtensions();
@@ -131,11 +131,7 @@ private:
 	vk::raii::SurfaceKHR m_surface = nullptr;
 	vk::raii::SwapchainKHR m_swapChain = nullptr;
 	std::vector<vk::raii::ImageView> m_swapImageViews;
-	std::vector<vk::raii::Framebuffer> m_framebuffers;
 	vk::Extent2D m_swapExtent;
-
-	std::unique_ptr<Pipeline> m_pipeline = nullptr;
-	vk::raii::RenderPass m_renderPass = nullptr;
 
 	vk::raii::CommandPool m_commandPool = nullptr;
 	vk::raii::CommandBuffer m_commandBuffer = nullptr;
@@ -146,10 +142,6 @@ private:
 
 	vk::raii::QueryPool m_queryPool = nullptr;
 	vk::raii::DescriptorPool m_descriptorPool = nullptr;
-
-	vk::raii::Image m_depthImage = nullptr;
-	vk::raii::DeviceMemory m_depthImageMemory = nullptr;
-	vk::raii::ImageView m_depthImageView = nullptr;
 
 	std::unique_ptr<AssetManager> m_assetManager = nullptr;
 	std::unique_ptr<DebugWindow> m_debugWindow = nullptr;
