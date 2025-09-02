@@ -62,6 +62,8 @@ public:
 	const vk::raii::PhysicalDevice& getPhysicalDevice() const;
 	const vk::raii::DescriptorPool& getDescriptorPool() const;
 	Renderer3D *getRenderer() const;
+	void setPresentMode(vk::PresentModeKHR mode);
+	vk::PresentModeKHR getPresentMode() const;
 
 	static vk::Format getSwapColourFormat();
 	static vk::Format getDepthFormat();

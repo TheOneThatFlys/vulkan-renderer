@@ -113,6 +113,15 @@ Renderer3D* VulkanEngine::getRenderer() const {
 	return m_renderer;
 }
 
+void VulkanEngine::setPresentMode(vk::PresentModeKHR mode) {
+	m_presentMode = mode;
+	queueSwapRecreation();
+}
+
+vk::PresentModeKHR VulkanEngine::getPresentMode() const {
+	return m_presentMode;
+}
+
 vk::Format VulkanEngine::getSwapColourFormat() {
 	return vk::Format::eB8G8R8A8Unorm;
 }

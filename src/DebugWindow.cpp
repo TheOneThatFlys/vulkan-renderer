@@ -234,6 +234,13 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
         }
 
         if (ImGui::BeginTabItem("Render")) {
+            ImGui::SeparatorText("Swapchain");
+
+            bool isVsync = m_engine->getPresentMode() == vk::PresentModeKHR::eFifo;
+            if (ImGui::Checkbox("VSync", &isVsync)) {
+                m_engine->setPresentMode(isVsync ? vk::PresentModeKHR::eFifo : vk::PresentModeKHR::eImmediate);
+            }
+
             ImGui::SeparatorText("Rasterizer");
             bool isWireframe = m_engine->getRenderer()->getPolygonMode() == vk::PolygonMode::eLine;
             if (ImGui::Checkbox("Wireframes", &isWireframe))
