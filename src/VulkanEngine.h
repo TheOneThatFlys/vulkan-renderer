@@ -29,7 +29,6 @@ constexpr std::array deviceExtensions = {
 	vk::KHRSwapchainExtensionName,
 	vk::EXTMemoryBudgetExtensionName,
 	vk::KHRDynamicRenderingExtensionName,
-	vk::EXTExtendedDynamicState3ExtensionName
 };
 
 #ifdef NDEBUG
@@ -64,8 +63,11 @@ public:
 	const vk::raii::DescriptorPool& getDescriptorPool() const;
 	Renderer3D *getRenderer() const;
 
-	vk::Format getSwapColourFormat() const;
-	vk::Format getDepthFormat() const;
+	static vk::Format getSwapColourFormat();
+	static vk::Format getDepthFormat();
+
+	void queueSwapRecreation();
+	void setWindowSize(u32 width, u32 height) const;
 
 	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
 	void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const;
@@ -83,7 +85,6 @@ private:
 	void createInstance();
 	void createLogicalDevice();
 	void createSurface();
-	void createImageViews();
 	void createSwapChain();
 	void createCommandPool();
 	void createCommandBuffers();
@@ -107,12 +108,17 @@ private:
 
 	void mainLoop();
 	void recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, u32 imageIndex) const;
-	void drawFrame() const;
+	void drawFrame();
+
+	void recreateSwapChain();
 
 	void cleanup() const;
 
 	float m_deltaTime = 1.0f / 120.0f;
 	double m_cpuTime = 0.0f;
+
+	vk::PresentModeKHR m_presentMode = vk::PresentModeKHR::eFifo;
+	bool m_shouldRecreateSwap = false;
 
 	Renderer3D* m_renderer = nullptr;
 	std::vector<IUpdatable*> m_updatables;

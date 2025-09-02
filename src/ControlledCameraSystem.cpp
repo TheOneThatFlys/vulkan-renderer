@@ -7,9 +7,6 @@
 #include "InputManager.h"
 
 ControlledCameraSystem::ControlledCameraSystem(GLFWwindow *window) : m_window(window) {
-    int width, height;
-    glfwGetWindowSize(window, &width, &height);
-    m_aspect = static_cast<float>(width) / static_cast<float>(height);
     // capture mouse
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
@@ -91,7 +88,7 @@ glm::mat4 ControlledCameraSystem::getViewMatrix() const {
 
 glm::mat4 ControlledCameraSystem::getProjectionMatrix() const {
     const ControlledCamera& camera = getCamera();
-    glm::mat4 temp = glm::perspective(camera.fov, m_aspect, 0.1f, 100.0f);
+    glm::mat4 temp = glm::perspective(camera.fov, camera.aspect, 0.1f, 100.0f);
     temp[1][1] *= -1; // glm assumes opengl coordinates so we flip for vulkan
     return temp;
 }

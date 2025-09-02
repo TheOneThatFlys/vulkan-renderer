@@ -12,7 +12,7 @@ Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
     , m_fragFrameUniforms(m_engine, 1)
 	, m_extent(extent)
 {
-	createPipeline();
+	createPipelines();
 	createDepthBuffer();
 
 	m_frameDescriptor = m_pipeline->createDescriptorSet(FRAME_SET_NUMBER);
@@ -23,12 +23,61 @@ Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
     m_modelUniforms.addToSet(m_modelDescriptor);
     // create camera
     m_camera = ECS::createEntity();
-    ECS::addComponent<ControlledCamera>(m_camera, {});
+    ECS::addComponent<ControlledCamera>(m_camera, {.aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height)});
     ECS::addComponent<NamedComponent>(m_camera, {"Camera"});
 }
 
 void Renderer3D::render(const vk::raii::CommandBuffer &commandBuffer, const vk::Image& image, const vk::ImageView& imageView) {
+	beginRender(commandBuffer, image, imageView);
+	setDynamicParameters(commandBuffer);
+	setFrameUniforms(commandBuffer);
+	drawModels(commandBuffer);
+	m_engine->getDebugWindow()->draw(commandBuffer);
+	endRender(commandBuffer, image);
+}
 
+const Pipeline * Renderer3D::getPipeline() const {
+	return m_pipeline.get();
+}
+
+void Renderer3D::setExtent(vk::Extent2D extent) {
+	m_extent = extent;
+	ECS::getComponent<ControlledCamera>(m_camera).aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
+	createDepthBuffer();
+}
+
+void Renderer3D::createPipelines() {
+	m_pipeline = Pipeline::Builder(m_engine)
+		.addShaderStage("shaders/shader.vert.spv")
+        .addShaderStage("shaders/shader.frag.spv")
+        .setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
+
+        .addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
+        .addBinding(0, 1, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment) // frame data - lights & camera
+
+        .addBinding(1, 0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - base
+        .addBinding(1, 1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - mr
+        .addBinding(1, 2, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - ao
+        .addBinding(1, 3, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - normal
+
+        .addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex) // model data
+		.create();
+}
+
+void Renderer3D::createDepthBuffer() {
+	std::tie(m_depthBuffer, m_depthBufferMemory) = m_engine->createImage(
+		m_extent.width,
+		m_extent.height,
+		m_engine->getDepthFormat(),
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eDepthStencilAttachment,
+		vk::MemoryPropertyFlagBits::eDeviceLocal
+	);
+
+	m_depthBufferImage = m_engine->createImageView(m_depthBuffer, m_engine->getDepthFormat(), vk::ImageAspectFlagBits::eDepth);
+}
+
+void Renderer3D::beginRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image, const vk::ImageView& imageView) const {
 	m_engine->transitionImageLayout(image, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
 
 	vk::RenderingAttachmentInfo colourAttachment = {
@@ -57,90 +106,59 @@ void Renderer3D::render(const vk::raii::CommandBuffer &commandBuffer, const vk::
 	};
 
 	commandBuffer.beginRendering(renderingInfo);
-    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline->getPipeline());
-    const vk::Viewport viewport = {
-        .x = 0.0f,
-        .y = 0.0f,
-        .width = static_cast<float>(m_extent.width),
-        .height = static_cast<float>(m_extent.height),
-        .minDepth = 0.0f,
-        .maxDepth = 1.0f
-    };
-    const vk::Rect2D scissor = {
-        .offset = {0, 0},
-        .extent = m_extent
-    };
-    commandBuffer.setViewport(0, viewport);
-    commandBuffer.setScissor(0, scissor);
-	commandBuffer.setPolygonModeEXT(m_polygonMode);
+	commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline->getPipeline());
 
-    const auto camera = ECS::getSystem<ControlledCameraSystem>();
-    m_frameUniforms.setData({
-        .view = camera->getViewMatrix(),
-        .projection = camera->getProjectionMatrix(),
-    });
+}
 
-    u32 nLights;
-    m_fragFrameUniforms.setData({
-        .cameraPosition = ECS::getComponent<ControlledCamera>(m_camera).position,
-        .lights = ECS::getSystem<LightSystem>()->getLights(nLights),
-        .nLights = nLights
-    });
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline->getLayout(), FRAME_SET_NUMBER, {*m_frameDescriptor}, nullptr);
+void Renderer3D::setDynamicParameters(const vk::raii::CommandBuffer& commandBuffer) const {
+	const vk::Viewport viewport = {
+		.x = 0.0f,
+		.y = 0.0f,
+		.width = static_cast<float>(m_extent.width),
+		.height = static_cast<float>(m_extent.height),
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f
+	};
+	const vk::Rect2D scissor = {
+		.offset = {0, 0},
+		.extent = m_extent
+	};
+	commandBuffer.setViewport(0, viewport);
+	commandBuffer.setScissor(0, scissor);
+}
 
-    u32 i = 0;
-    for (const ECS::Entity entity : m_entities) {
-        auto& modelInfo = ECS::getComponent<Model3D>(entity);
-        auto& modelTransform = ECS::getComponent<Transform>(entity);
-        m_modelUniforms.setData(i, {modelTransform.transform, glm::mat4(glm::mat3(glm::inverseTranspose(modelTransform.transform)))});
+void Renderer3D::setFrameUniforms(const vk::raii::CommandBuffer& commandBuffer) {
+	const auto camera = ECS::getSystem<ControlledCameraSystem>();
+	m_frameUniforms.setData({
+		.view = camera->getViewMatrix(),
+		.projection = camera->getProjectionMatrix(),
+	});
 
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline->getLayout(), MODEL_SET_NUMBER, {*m_modelDescriptor}, {i * m_modelUniforms.getItemSize()});
+	u32 nLights;
+	m_fragFrameUniforms.setData({
+		.cameraPosition = ECS::getComponent<ControlledCamera>(m_camera).position,
+		.lights = ECS::getSystem<LightSystem>()->getLights(nLights),
+		.nLights = nLights
+	});
+	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline->getLayout(), FRAME_SET_NUMBER, {*m_frameDescriptor}, nullptr);
+}
 
-        modelInfo.material->use(commandBuffer, m_pipeline->getLayout());
-        modelInfo.mesh->draw(commandBuffer);
-        ++i;
-    }
+void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
+	u32 i = 0;
+	for (const ECS::Entity entity : m_entities) {
+		auto& modelInfo = ECS::getComponent<Model3D>(entity);
+		auto& modelTransform = ECS::getComponent<Transform>(entity);
+		m_modelUniforms.setData(i, {modelTransform.transform, glm::mat4(glm::mat3(glm::inverseTranspose(modelTransform.transform)))});
 
-	m_engine->getDebugWindow()->draw(commandBuffer);
+		commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline->getLayout(), MODEL_SET_NUMBER, {*m_modelDescriptor}, {i * m_modelUniforms.getItemSize()});
 
+		modelInfo.material->use(commandBuffer, m_pipeline->getLayout());
+		modelInfo.mesh->draw(commandBuffer);
+		++i;
+	}
+}
+
+void Renderer3D::endRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image) const {
 	commandBuffer.endRendering();
-
 	m_engine->transitionImageLayout(image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR);
-
-}
-
-const Pipeline * Renderer3D::getPipeline() const {
-	return m_pipeline.get();
-}
-
-void Renderer3D::createPipeline() {
-	m_pipeline = Pipeline::Builder(m_engine)
-		.addShaderStage("shaders/shader.vert.spv")
-        .addShaderStage("shaders/shader.frag.spv")
-        .setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
-		.addDynamicState(vk::DynamicState::ePolygonModeEXT)
-
-        .addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
-        .addBinding(0, 1, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment) // frame data - lights & camera
-
-        .addBinding(1, 0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - base
-        .addBinding(1, 1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - mr
-        .addBinding(1, 2, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - ao
-        .addBinding(1, 3, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // material - normal
-
-        .addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex) // model data
-		.create();
-}
-
-void Renderer3D::createDepthBuffer() {
-	std::tie(m_depthBuffer, m_depthBufferMemory) = m_engine->createImage(
-		m_extent.width,
-		m_extent.height,
-		m_engine->getDepthFormat(),
-		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eDepthStencilAttachment,
-		vk::MemoryPropertyFlagBits::eDeviceLocal
-	);
-
-	m_depthBufferImage = m_engine->createImageView(m_depthBuffer, m_engine->getDepthFormat(), vk::ImageAspectFlagBits::eDepth);
 }

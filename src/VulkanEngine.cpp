@@ -8,9 +8,9 @@
 #include <string>
 #include <iostream>
 #include <chrono>
+#include <thread>
 
 #include <vulkan/vulkan_hpp_macros.hpp>
-
 
 #include "ECS.h"
 #include "InputManager.h"
@@ -19,7 +19,6 @@
 #include "Components.h"
 #include "EntitySearcher.h"
 #include "LightSystem.h"
-#include "Pipeline.h"
 #include "Renderer3D.h"
 #include "TransformSystem.h"
 
@@ -114,23 +113,36 @@ Renderer3D* VulkanEngine::getRenderer() const {
 	return m_renderer;
 }
 
-vk::Format VulkanEngine::getSwapColourFormat() const {
+vk::Format VulkanEngine::getSwapColourFormat() {
 	return vk::Format::eB8G8R8A8Unorm;
 }
 
-vk::Format VulkanEngine::getDepthFormat() const {
+vk::Format VulkanEngine::getDepthFormat() {
 	return vk::Format::eD32Sfloat;
+}
+
+void VulkanEngine::queueSwapRecreation() {
+	m_shouldRecreateSwap = true;
+}
+
+void VulkanEngine::setWindowSize(const u32 width, const u32 height) const {
+	glfwSetWindowSize(m_window, width, height);
 }
 
 void VulkanEngine::initWindow() {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	// glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 	// center the window on the primary monitor
 	const GLFWvidmode* videoMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
 	glfwWindowHint(GLFW_POSITION_X, (videoMode->width - static_cast<i32>(WINDOW_WIDTH)) / 2);
 	glfwWindowHint(GLFW_POSITION_Y, (videoMode->height - static_cast<i32>(WINDOW_HEIGHT)) / 2);
 	m_window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Vulkan Renderer", nullptr, nullptr);
+
+	glfwSetWindowUserPointer(m_window, this);
+	glfwSetFramebufferSizeCallback(m_window, [](GLFWwindow* window, i32, i32) -> void {
+		static_cast<VulkanEngine*>(glfwGetWindowUserPointer(window))->queueSwapRecreation();
+	});
 }
 
 void VulkanEngine::initVulkan() {
@@ -141,7 +153,6 @@ void VulkanEngine::initVulkan() {
 	pickPhysicalDevice();
 	createLogicalDevice();
 	createSwapChain();
-	createImageViews();
 	createCommandPool();
 	createCommandBuffers();
 	createQueryPool();
@@ -191,7 +202,7 @@ void VulkanEngine::createScene() const {
 	sphereTransform.scale = glm::vec3(0.1f);
 	sphereTransform.position = glm::vec3(0.0f, 10.0f, 0.0f);
 
-	ECS::Entity map = m_assetManager->loadGLB("assets/cs_office.glb");
+	const ECS::Entity map = m_assetManager->loadGLB("assets/cs_office.glb");
 	ECS::getComponent<Transform>(map).scale = glm::vec3(0.01f);
 }
 
@@ -242,7 +253,6 @@ void VulkanEngine::createLogicalDevice() {
 	}
 
 	vk::PhysicalDeviceFeatures deviceFeatures = {
-		.fillModeNonSolid = vk::True,
 		.samplerAnisotropy = vk::True
 	};
 	vk::StructureChain createInfo = {
@@ -255,9 +265,6 @@ void VulkanEngine::createLogicalDevice() {
 		},
 		vk::PhysicalDeviceDynamicRenderingFeatures {
 			.dynamicRendering = vk::True
-		},
-		vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT {
-			.extendedDynamicState3PolygonMode = true
 		}
 	};
 
@@ -274,12 +281,6 @@ void VulkanEngine::createSurface() {
 
 	// convert the returned c surface into vulkan_hpp bindings one
 	m_surface = vk::raii::SurfaceKHR(m_instance, cSurface);
-}
-
-void VulkanEngine::createImageViews() {
-	for (const auto& image : m_swapChain.getImages()) {
-		m_swapImageViews.push_back(createImageView(image, getSwapColourFormat(), vk::ImageAspectFlagBits::eColor));
-	}
 }
 
 void VulkanEngine::createSwapChain() {
@@ -300,9 +301,9 @@ void VulkanEngine::createSwapChain() {
 		.imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
 		.preTransform = capabilities.currentTransform,
 		.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
-		.presentMode = vk::PresentModeKHR::eFifo,
+		.presentMode = m_presentMode,
 		.clipped = vk::True,
-		.oldSwapchain = nullptr,
+		.oldSwapchain = m_swapChain,
 	};
 
 	QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);
@@ -317,6 +318,11 @@ void VulkanEngine::createSwapChain() {
 	}
 
 	m_swapChain = vk::raii::SwapchainKHR(m_device, createInfo);
+
+	// create image views
+	for (const auto& image : m_swapChain.getImages()) {
+		m_swapImageViews.push_back(createImageView(image, getSwapColourFormat(), vk::ImageAspectFlagBits::eColor));
+	}
 }
 
 void VulkanEngine::createCommandPool() {
@@ -491,16 +497,6 @@ vk::raii::ImageView VulkanEngine::createImageView(vk::Image image, vk::Format fo
 	};
 
 	return vk::raii::ImageView(m_device, createInfo);
-}
-
-void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, const u32 imageIndex) const {
-	commandBuffer.begin({});
-	commandBuffer.resetQueryPool(m_queryPool, 0, 2);
-	commandBuffer.writeTimestamp(vk::PipelineStageFlagBits::eTopOfPipe, m_queryPool, 0);
-	m_renderer->render(commandBuffer, m_swapChain.getImages().at(imageIndex), m_swapImageViews[imageIndex]);
-	commandBuffer.writeTimestamp(vk::PipelineStageFlagBits::eBottomOfPipe, m_queryPool, 1);
-
-	commandBuffer.end();
 }
 
 void VulkanEngine::copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const {
@@ -708,12 +704,15 @@ void VulkanEngine::mainLoop() {
 	m_device.waitIdle();
 }
 
-void VulkanEngine::drawFrame() const {
-	// wait indefinitely
+void VulkanEngine::drawFrame() {
 	while (m_device.waitForFences(*m_inFlightFence, vk::True, std::numeric_limits<u64>::max()) == vk::Result::eTimeout) {}
-	m_device.resetFences(*m_inFlightFence);
 
 	auto [result, imageIndex] = m_swapChain.acquireNextImage(std::numeric_limits<u64>::max(), *m_imageAvailableSemaphore, nullptr);
+	if (result == vk::Result::eErrorOutOfDateKHR) {
+		recreateSwapChain();
+		return;
+	}
+	m_device.resetFences(*m_inFlightFence);
 	m_commandBuffer.reset();
 	recordCommandBuffer(m_commandBuffer, imageIndex);
 
@@ -737,8 +736,43 @@ void VulkanEngine::drawFrame() const {
 		.pSwapchains = &*m_swapChain,
 		.pImageIndices = &imageIndex,
 	};
-	vk::Result presentResult = m_presentQueue.presentKHR(presentInfo);
-	if (presentResult != vk::Result::eSuccess) throw std::runtime_error("Error presenting frame");
+	try {
+		vk::Result presentResult = m_presentQueue.presentKHR(presentInfo);
+		if (presentResult == vk::Result::eErrorOutOfDateKHR || m_shouldRecreateSwap) throw vk::OutOfDateKHRError("");
+	}
+	catch (vk::OutOfDateKHRError&) {
+		recreateSwapChain();
+	}
+}
+
+void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, const u32 imageIndex) const {
+	commandBuffer.begin({});
+	commandBuffer.resetQueryPool(m_queryPool, 0, 2);
+	commandBuffer.writeTimestamp(vk::PipelineStageFlagBits::eTopOfPipe, m_queryPool, 0);
+	m_renderer->render(commandBuffer, m_swapChain.getImages().at(imageIndex), m_swapImageViews[imageIndex]);
+	commandBuffer.writeTimestamp(vk::PipelineStageFlagBits::eBottomOfPipe, m_queryPool, 1);
+
+	commandBuffer.end();
+}
+
+void VulkanEngine::recreateSwapChain() {
+	m_shouldRecreateSwap = false;
+	// check for minimization
+	i32 width, height;
+	glfwGetFramebufferSize(m_window, &width, &height);
+	while (width == 0 || height == 0) {
+		glfwGetFramebufferSize(m_window, &width, &height);
+		glfwWaitEvents();
+	}
+
+	m_device.waitIdle();
+
+	m_swapImageViews.clear();
+
+	createSwapChain();
+	m_renderer->setExtent(m_swapExtent);
+
+	Logger::info("Recreated swapchain [{}x{}]", m_swapExtent.width, m_swapExtent.height);
 }
 
 void VulkanEngine::cleanup() const {

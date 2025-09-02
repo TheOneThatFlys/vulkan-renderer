@@ -32,10 +32,17 @@ public:
 
     void setPolygonMode(vk::PolygonMode mode) { m_polygonMode = mode; }
     vk::PolygonMode getPolygonMode() const { return m_polygonMode; }
+    void setExtent(vk::Extent2D extent);
 
 private:
-    void createPipeline();
+    void createPipelines();
     void createDepthBuffer();
+
+    void beginRender(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image, const vk::ImageView &imageView) const;
+    void setDynamicParameters(const vk::raii::CommandBuffer &commandBuffer) const;
+    void setFrameUniforms(const vk::raii::CommandBuffer &commandBuffer);
+    void drawModels(const vk::raii::CommandBuffer &commandBuffer);
+    void endRender(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image) const;
 
     VulkanEngine* m_engine;
     vk::Extent2D m_extent;

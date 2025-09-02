@@ -127,8 +127,8 @@ namespace ECS {
     public:
         std::unordered_set<Entity> m_entities;
         virtual ~System() = default;
-        virtual void onEntityAdd(Entity entity) {};
-        virtual void onEntityRemove(Entity entity) {};
+        virtual void onEntityAdd(Entity entity) {}
+        virtual void onEntityRemove(Entity entity) {}
     };
 
     class SystemManager {

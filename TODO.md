@@ -11,6 +11,7 @@
 - Change VulkanEngine to global scope?
 - Ray tracing?
 - Switch from tinygltf -> [fastgltf](https://github.com/spnda/fastgltf)
+- Multithreading asset loading?
 
 ### Small Optimisations (low prio.)
 
