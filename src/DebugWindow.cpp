@@ -236,6 +236,34 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
         if (ImGui::BeginTabItem("Render")) {
             ImGui::SeparatorText("Swapchain");
 
+            using Resolution = std::pair<u32, u32>;
+
+            constexpr std::array resolutions = {
+                Resolution{2560, 1440},
+                Resolution{1920, 1080},
+                Resolution{1280, 720},
+            };
+            const auto resToString = [&resolutions](const Resolution& res) -> std::string {
+                if (std::ranges::find(resolutions, res) == resolutions.end()) {
+                    return std::format("Custom ({}x{})", res.first, res.second);
+                }
+                return std::format("{}x{}", res.first, res.second);
+            };
+
+            const Resolution actualResolution = m_engine->getWindowSize();
+            if (ImGui::BeginCombo("Resolution", resToString(actualResolution).c_str())) {
+                for (const auto& resolution : resolutions) {
+                    const bool isSelected = resolution == actualResolution;
+                    if (ImGui::Selectable(resToString(resolution).c_str(), isSelected)) {
+                        m_engine->setWindowSize(resolution.first, resolution.second);
+                    }
+                    if (isSelected) {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
+            }
+
             bool isVsync = m_engine->getPresentMode() == vk::PresentModeKHR::eFifo;
             if (ImGui::Checkbox("VSync", &isVsync)) {
                 m_engine->setPresentMode(isVsync ? vk::PresentModeKHR::eFifo : vk::PresentModeKHR::eImmediate);

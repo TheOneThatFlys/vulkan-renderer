@@ -135,7 +135,17 @@ void VulkanEngine::queueSwapRecreation() {
 }
 
 void VulkanEngine::setWindowSize(const u32 width, const u32 height) const {
-	glfwSetWindowSize(m_window, width, height);
+	glfwSetWindowSize(m_window, static_cast<i32>(width), static_cast<i32>(height));
+	const auto newSize = getWindowSize();
+	if (newSize.first != width || newSize.second != height) {
+		Logger::warn("Unable to resize window to requested size");
+	}
+}
+
+std::pair<u32, u32> VulkanEngine::getWindowSize() const {
+	int width, height;
+	glfwGetWindowSize(m_window, &width, &height);
+	return { static_cast<u32>(width), static_cast<u32>(height) };
 }
 
 void VulkanEngine::initWindow() {

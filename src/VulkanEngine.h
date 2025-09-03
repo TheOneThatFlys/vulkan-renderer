@@ -70,6 +70,7 @@ public:
 
 	void queueSwapRecreation();
 	void setWindowSize(u32 width, u32 height) const;
+	std::pair<u32, u32> getWindowSize() const;
 
 	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
 	void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const;
