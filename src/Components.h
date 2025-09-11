@@ -7,11 +7,28 @@
 #include "Material.h"
 #include "Mesh.h"
 
+// these macros are defined in windows.h
+// hopefully undef-ing them doesn't break anything...
+#undef near
+#undef far
+
 struct Transform {
     glm::vec3 position = glm::vec3(0.0f);
     glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     glm::vec3 scale = glm::vec3(1.0f, 1.0f, 1.0f);
     glm::mat4 transform = glm::mat4(1.0f);
+
+    static glm::vec3 getTransform(glm::mat4 matrix) {
+        return glm::vec3(matrix[3]);
+    }
+
+    static glm::vec3 getScale(glm::mat4 matrix) {
+        return {
+            glm::length(matrix[0]),
+            glm::length(matrix[1]),
+            glm::length(matrix[2])
+        };
+    }
 };
 
 struct HierarchyComponent {
@@ -71,6 +88,9 @@ struct ControlledCamera {
     float aspect = 1.0f;
 
     bool capturingMouse = true;
+
+    float near = 0.1f;
+    float far = 100.0f;
 };
 
 struct PointLight {

@@ -707,7 +707,6 @@ void VulkanEngine::mainLoop() {
 	while (!glfwWindowShouldClose(m_window)) {
 		InputManager::update();
 		glfwPollEvents();
-		drawFrame();
 
 		const auto updateStartTime = std::chrono::high_resolution_clock::now();
 		for (const auto x : m_updatables) {
@@ -715,6 +714,8 @@ void VulkanEngine::mainLoop() {
 		}
 		const auto updateEndTime = std::chrono::high_resolution_clock::now();
 		m_cpuTime = static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(updateEndTime - updateStartTime).count());
+
+		drawFrame();
 
 		const auto nowTime = static_cast<float>(glfwGetTime());
 		m_deltaTime = nowTime - prevTime;

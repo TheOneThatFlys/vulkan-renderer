@@ -230,6 +230,12 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
             std::string progress = std::format("{} / {}", storageSizeToString(usedGB), storageSizeToString(totalGB));
             ImGui::ProgressBar(static_cast<float>(usedGB) / static_cast<float>(totalGB), ImVec2(0.0f, 0.0f), progress.c_str());
 
+            ImGui::Separator();
+
+            const auto rendererInfo = m_engine->getRenderer()->getDebugInfo();
+            ImGui::Text(std::format("Total Instances:    {}", rendererInfo.totalInstanceCount).c_str());
+            ImGui::Text(std::format("Rendered Instances: {}", rendererInfo.renderedInstanceCount).c_str());
+
             ImGui::EndTabItem();
         }
 

@@ -46,6 +46,10 @@ void Renderer3D::setExtent(vk::Extent2D extent) {
 	createDepthBuffer();
 }
 
+RendererDebugInfo Renderer3D::getDebugInfo() const {
+	return m_debugInfo;
+}
+
 void Renderer3D::createPipelines() {
 	m_pipeline = Pipeline::Builder(m_engine)
 		.addShaderStage("shaders/shader.vert.spv")
@@ -144,8 +148,22 @@ void Renderer3D::setFrameUniforms(const vk::raii::CommandBuffer& commandBuffer) 
 }
 
 void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
+	m_debugInfo = {
+		.totalInstanceCount = 0,
+		.renderedInstanceCount = 0
+	};
+
+	const Frustum cameraFrustum = ECS::getSystem<ControlledCameraSystem>()->getFrustum();
+
 	u32 i = 0;
 	for (const ECS::Entity entity : m_entities) {
+		++m_debugInfo.totalInstanceCount;
+
+		const Sphere boundingVolume = createBoundingVolume(entity);
+		if (!cameraFrustum.intersects(boundingVolume)) continue;
+
+		++m_debugInfo.renderedInstanceCount;
+
 		auto& modelInfo = ECS::getComponent<Model3D>(entity);
 		auto& modelTransform = ECS::getComponent<Transform>(entity);
 		m_modelUniforms.setData(i, {modelTransform.transform, glm::mat4(glm::mat3(glm::inverseTranspose(modelTransform.transform)))});
@@ -161,4 +179,20 @@ void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
 void Renderer3D::endRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image) const {
 	commandBuffer.endRendering();
 	m_engine->transitionImageLayout(image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR);
+}
+
+Sphere Renderer3D::createBoundingVolume(const ECS::Entity entity) const {
+	assert(ECS::hasComponent<Transform>(entity));
+	assert(ECS::hasComponent<Model3D>(entity));
+
+	const auto& transform = ECS::getComponent<Transform>(entity);
+	const auto& model = ECS::getComponent<Model3D>(entity);
+
+	const glm::vec3 globalScale = Transform::getScale(transform.transform);
+	const float maxScale = std::max(std::max(globalScale.x, globalScale.y), globalScale.z);
+
+	return {
+		.center = Transform::getTransform(transform.transform),
+		.radius = model.mesh->getMaxDistance() * maxScale
+	};
 }

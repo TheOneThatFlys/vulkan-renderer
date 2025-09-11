@@ -206,9 +206,9 @@ std::unique_ptr<Mesh> AssetManager::loadMesh(const tinygltf::Model& ctx, const t
 
     constexpr float nullUVs[] = {0.0f, 0.0f};
     std::vector<Vertex> vertices;
-    u32 numberOfVertices = ctx.accessors[primitive.attributes.at("POSITION")].count;
+    const u64 numberOfVertices = ctx.accessors[primitive.attributes.at("POSITION")].count;
     vertices.reserve(numberOfVertices);
-    for (u32 i = 0; i < numberOfVertices; ++i) {
+    for (u64 i = 0; i < numberOfVertices; ++i) {
         const auto pos = reinterpret_cast<const float*>(&positions[i * 12]);
         const auto uv = hasUVs ? reinterpret_cast<const float*>(&uvs[i * 8]) : nullUVs;
         const auto normal = reinterpret_cast<const float*>(&normals[i * 12]);
@@ -220,14 +220,15 @@ std::unique_ptr<Mesh> AssetManager::loadMesh(const tinygltf::Model& ctx, const t
             glm::vec3(tangent[0], tangent[1], tangent[2]) // tangent
         );
     }
+
     // load indexes
     const tinygltf::Accessor& indexAccessor = ctx.accessors[primitive.indices];
     const tinygltf::BufferView& indexBufferView = ctx.bufferViews[indexAccessor.bufferView];
     const tinygltf::Buffer& indexBuffer = ctx.buffers[indexBufferView.buffer];
 
+    const size_t indexStart = indexAccessor.byteOffset + indexBufferView.byteOffset;
     if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
         std::vector<u32> indexes;
-        size_t indexStart = indexAccessor.byteOffset + indexBufferView.byteOffset;
         indexes.reserve(indexAccessor.count);
         for (u32 i = 0; i < indexAccessor.count; ++i) {
             const auto index = *reinterpret_cast<const u32*>(&indexBuffer.data[indexStart + i * 4]);
@@ -239,7 +240,6 @@ std::unique_ptr<Mesh> AssetManager::loadMesh(const tinygltf::Model& ctx, const t
 
     if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
         std::vector<u16> indexes;
-        size_t indexStart = indexAccessor.byteOffset + indexBufferView.byteOffset;
         indexes.reserve(indexAccessor.count);
         for (u32 i = 0; i < indexAccessor.count; ++i) {
             const auto index = *reinterpret_cast<const u16*>(&indexBuffer.data[indexStart + i * 2]);

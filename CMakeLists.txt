@@ -78,6 +78,7 @@ add_executable (VulkanRenderer
         src/EntitySearcher.h
         src/LightSystem.cpp
         src/LightSystem.h
+        src/Volumes.h
 )
 
 target_link_libraries(VulkanRenderer PRIVATE glfw)

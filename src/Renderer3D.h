@@ -23,6 +23,11 @@ struct FragFrameData {
     u32 nLights;
 };
 
+struct RendererDebugInfo {
+    u32 totalInstanceCount;
+    u32 renderedInstanceCount;
+};
+
 class Renderer3D final : public ECS::System {
 public:
     explicit Renderer3D(VulkanEngine *engine, vk::Extent2D extent);
@@ -33,6 +38,7 @@ public:
     void setPolygonMode(vk::PolygonMode mode) { m_polygonMode = mode; }
     vk::PolygonMode getPolygonMode() const { return m_polygonMode; }
     void setExtent(vk::Extent2D extent);
+    RendererDebugInfo getDebugInfo() const;
 
 private:
     void createPipelines();
@@ -43,6 +49,8 @@ private:
     void setFrameUniforms(const vk::raii::CommandBuffer &commandBuffer);
     void drawModels(const vk::raii::CommandBuffer &commandBuffer);
     void endRender(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image) const;
+
+    Sphere createBoundingVolume(ECS::Entity entity) const;
 
     VulkanEngine* m_engine;
     vk::Extent2D m_extent;
@@ -63,4 +71,6 @@ private:
     UniformBufferBlock<FragFrameData> m_fragFrameUniforms;
 
     vk::PolygonMode m_polygonMode = vk::PolygonMode::eFill;
+
+    RendererDebugInfo m_debugInfo;
 };
