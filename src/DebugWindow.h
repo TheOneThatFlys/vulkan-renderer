@@ -11,6 +11,12 @@
 
 constexpr u32 FRAME_AVERAGE_COUNT = 32;
 
+enum DebugFlags {
+    eNormalizeRotation,
+    eDisplayMatrix,
+    eDisplayBoundingVolume
+};
+
 class SceneGraphDisplaySystem : public ECS::System {
 public:
     void draw() const;
@@ -32,6 +38,10 @@ private:
 
     void createUpdateCallbacks();
 
+    void drawNodeRecursive(ECS::Entity entity);
+
+    static void drawMatrix(const glm::mat4& mat);
+
     VulkanEngine* m_engine;
     SceneGraphDisplaySystem* m_graphDisplay;
 
@@ -45,6 +55,8 @@ private:
     bool m_framesFilled = false;
 
     VRAMUsageInfo m_vramUsage;
+
+    std::array<std::bitset<32>, ECS::MAX_ENTITIES> m_debugFlags;
 
     bool m_showBoundingVolumes = false;
 };

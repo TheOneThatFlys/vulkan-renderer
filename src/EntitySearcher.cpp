@@ -38,3 +38,7 @@ std::optional<ECS::Entity> EntitySearcher::findChild(const std::string & name, c
     return std::optional<ECS::Entity>();
 
 }
+
+const std::unordered_set<ECS::Entity>& AllEntities::get() {
+    return m_entities;
+}

@@ -7,136 +7,9 @@
 #include <ranges>
 
 #include "Components.h"
+#include "EntitySearcher.h"
 #include "Renderer3D.h"
 #include "VulkanEngine.h"
-
-void SceneGraphDisplaySystem::draw() const {
-    ImGui::Text("Total entities: %u", m_entities.size());
-    for (const ECS::Entity entity : m_entities) {
-        const auto hierarchy = ECS::getComponentOptional<HierarchyComponent>(entity);
-        if (!hierarchy || hierarchy->parent == -1) {
-            drawNodeRecursive(entity);
-        }
-    }
-}
-
-void SceneGraphDisplaySystem::drawNodeRecursive(ECS::Entity entity) {
-    std::string name;
-    if (ECS::hasComponent<NamedComponent>(entity)) {
-        name = ECS::getComponent<NamedComponent>(entity).name;
-    }
-    else {
-        name = std::format("Entity #{}", entity);
-    }
-
-    if (ImGui::TreeNodeEx(name.c_str())) {
-
-        // Components sorted alphabetically
-        ImGui::SeparatorText("Components");
-        // Meta
-        if (ImGui::TreeNode("Meta")) {
-            ImGui::Text("ID: %d", entity);
-            ImGui::Text(std::format("Signature: {}", ECS::getSignature(entity).to_string()).c_str());
-            ImGui::TreePop();
-        }
-
-        // Camera
-        if (ECS::hasComponent<ControlledCamera>(entity)) {
-            if (ImGui::TreeNode("Camera")) {
-                auto& camera = ECS::getComponent<ControlledCamera>(entity);
-                ImGui::DragFloat3("Position", glm::value_ptr(camera.position), 0.1f);
-                float yawPitchTemp[] = {camera.yaw, camera.pitch};
-                if (ImGui::DragFloat2("Yaw/Pitch", yawPitchTemp, 0.02f, glm::radians(-180.0f), glm::radians(180.0f), "%.3f", ImGuiSliderFlags_WrapAround)) {
-                    camera.yaw = yawPitchTemp[0];
-                    camera.pitch = std::ranges::clamp(yawPitchTemp[1], glm::radians(-89.9f), glm::radians(89.9f));
-                }
-                ImGui::SliderAngle("FOV", &camera.fov, 0.0001f, 180.0f);
-                ImGui::SliderFloat("Speed", &camera.speed, 0.0f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
-                ImGui::SliderFloat("Sensitivity", &camera.sensitivity, 0.0001f, 0.01f, "%.4f", ImGuiSliderFlags_NoRoundToFormat);
-
-                ImGui::TreePop();
-            }
-        }
-
-        // Hierarchy
-        if (ECS::hasComponent<HierarchyComponent>(entity)) {
-            if (ImGui::TreeNode("Hierarchy")) {
-                auto& hierarchy = ECS::getComponent<HierarchyComponent>(entity);
-                ImGui::Text("Parent: %d", hierarchy.parent);
-                std::string childrenString;
-                for (auto child : hierarchy.children) {
-                    childrenString += std::to_string(child) + ", ";
-                }
-                if (!childrenString.empty())
-                    childrenString = childrenString.substr(0, childrenString.size() - 2);
-                ImGui::Text(std::format("Children: [{}]", childrenString).c_str());
-                ImGui::TreePop();
-            }
-        }
-        // Light
-        if (ECS::hasComponent<PointLight>(entity)) {
-            if (ImGui::TreeNode("Light")) {
-                auto& light = ECS::getComponent<PointLight>(entity);
-                ImGui::ColorEdit3("Colour", glm::value_ptr(light.colour));
-                ImGui::DragFloat("Strength", &light.strength, 1, 0, std::numeric_limits<float>::max());
-                ImGui::TreePop();
-            }
-        }
-        // Model
-        if (ECS::hasComponent<Model3D>(entity)) {
-            if (ImGui::TreeNode("Model3D")) {
-                const auto& model = ECS::getComponent<Model3D>(entity);
-                ImGui::Text("Mesh: <0x%X>", model.mesh);
-                ImGui::Text("Material: <0x%X>", model.material);
-                ImGui::TreePop();
-            }
-        }
-        // Transform
-        if (ECS::hasComponent<Transform>(entity)) {
-            if (ImGui::TreeNode("Transform")) {
-                static bool showMatrix = false;
-                auto&[position, rotation, scale, transform] = ECS::getComponent<Transform>(entity);
-                ImGui::DragFloat3("Position", glm::value_ptr(position), 0.01f);
-                ImGui::DragFloat4("Rotation", glm::value_ptr(rotation), 0.01f, -1.0f, 1.0f);
-                ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.01f, 0.0f, std::numeric_limits<float>::max());
-
-                static bool normalizeRotation = false;
-                ImGui::Checkbox("Normalize rotation", &normalizeRotation);
-                if (normalizeRotation)
-                    rotation = glm::normalize(rotation);
-
-                ImGui::SameLine();
-                ImGui::Checkbox("Show matrix", &showMatrix);
-
-                if (showMatrix)
-                    drawMatrix(transform);
-
-                ImGui::TreePop();
-            }
-        }
-
-        if (ECS::hasComponent<HierarchyComponent>(entity)) {
-            auto& hierarchy = ECS::getComponent<HierarchyComponent>(entity);
-            if (!hierarchy.children.empty()) {
-                ImGui::SeparatorText("Children");
-                for (const ECS::Entity child : hierarchy.children) {
-                    drawNodeRecursive(child);
-                }
-            }
-        }
-
-        ImGui::TreePop();
-    }
-}
-
-void SceneGraphDisplaySystem::drawMatrix(glm::mat4 &matrix) {
-    for (u32 row = 0; row < 4; ++row) {
-        for (u32 col = 0; col < 4; ++col) {
-            ImGui::Text("% .3f", matrix[col][row]);
-            if (col != 3) ImGui::SameLine();
-        }
-    }
-}
 
 DebugWindow::DebugWindow(VulkanEngine* engine, GLFWwindow *window, const vk::raii::Instance& instance, const vk::raii::PhysicalDevice& physicalDevice, const vk::raii::Device& device, const vk::raii::Queue& queue) {
     m_engine = engine;
@@ -282,7 +155,14 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
         }
 
         if (ImGui::BeginTabItem("ECS")) {
-            m_graphDisplay->draw();
+            const auto& entities = ECS::getSystem<AllEntities>()->get();
+            ImGui::Text("Total entities: %u", entities.size());
+            for (const ECS::Entity entity : entities) {
+                const auto hierarchy = ECS::getComponentOptional<HierarchyComponent>(entity);
+                if (!hierarchy || hierarchy->parent == -1) {
+                    drawNodeRecursive(entity);
+                }
+            }
             ImGui::EndTabItem();
         }
 
@@ -296,12 +176,11 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
     ImGui_ImplVulkan_RenderDrawData(drawData, *commandBuffer);
 
     // render bounding volumes
-    if (m_showBoundingVolumes) {
-        const auto renderer = m_engine->getRenderer();
-        BoundingVolumeRenderer& boundingVolumeRenderer = renderer->getBoundingVolumeRenderer();
-        for (const auto entity : renderer->m_entities) {
-            boundingVolumeRenderer.queueSphere(renderer->createBoundingVolume(entity), glm::vec3(1.0f, 1.0f, 1.0f));
-        }
+    const auto renderer = m_engine->getRenderer();
+    BoundingVolumeRenderer& boundingVolumeRenderer = renderer->getBoundingVolumeRenderer();
+    for (const auto entity : renderer->m_entities) {
+        if (!m_debugFlags.at(entity).test(eDisplayBoundingVolume)) continue;
+        boundingVolumeRenderer.queueSphere(renderer->createBoundingVolume(entity), glm::vec3(1.0f, 1.0f, 1.0f));
     }
 
     // update callbacks
@@ -323,4 +202,129 @@ void DebugWindow::createUpdateCallbacks() {
     setTimedUpdate([](DebugWindow* window) -> void {
         window->m_vramUsage = window->m_engine->getVramUsage();
     }, 60);
+}
+
+void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
+    std::string name;
+    if (ECS::hasComponent<NamedComponent>(entity)) {
+        name = ECS::getComponent<NamedComponent>(entity).name;
+    }
+    else {
+        name = std::format("Entity #{}", entity);
+    }
+
+    if (ImGui::TreeNodeEx(name.c_str())) {
+
+        // Components sorted alphabetically
+        ImGui::SeparatorText("Components");
+        // Meta
+        if (ImGui::TreeNode("Meta")) {
+            ImGui::Text("ID: %d", entity);
+            ImGui::Text(std::format("Signature: {}", ECS::getSignature(entity).to_string()).c_str());
+            ImGui::TreePop();
+        }
+
+        // Camera
+        if (ECS::hasComponent<ControlledCamera>(entity)) {
+            if (ImGui::TreeNode("Camera")) {
+                auto& camera = ECS::getComponent<ControlledCamera>(entity);
+                ImGui::DragFloat3("Position", glm::value_ptr(camera.position), 0.1f);
+                float yawPitchTemp[] = {camera.yaw, camera.pitch};
+                if (ImGui::DragFloat2("Yaw/Pitch", yawPitchTemp, 0.02f, glm::radians(-180.0f), glm::radians(180.0f), "%.3f", ImGuiSliderFlags_WrapAround)) {
+                    camera.yaw = yawPitchTemp[0];
+                    camera.pitch = std::ranges::clamp(yawPitchTemp[1], glm::radians(-89.9f), glm::radians(89.9f));
+                }
+                ImGui::SliderAngle("FOV", &camera.fov, 0.0001f, 180.0f);
+                ImGui::SliderFloat("Speed", &camera.speed, 0.0f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
+                ImGui::SliderFloat("Sensitivity", &camera.sensitivity, 0.0001f, 0.01f, "%.4f", ImGuiSliderFlags_NoRoundToFormat);
+
+                ImGui::TreePop();
+            }
+        }
+
+        // Hierarchy
+        if (ECS::hasComponent<HierarchyComponent>(entity)) {
+            if (ImGui::TreeNode("Hierarchy")) {
+                auto& hierarchy = ECS::getComponent<HierarchyComponent>(entity);
+                ImGui::Text("Parent: %d", hierarchy.parent);
+                std::string childrenString;
+                for (auto child : hierarchy.children) {
+                    childrenString += std::to_string(child) + ", ";
+                }
+                if (!childrenString.empty())
+                    childrenString = childrenString.substr(0, childrenString.size() - 2);
+                ImGui::Text(std::format("Children: [{}]", childrenString).c_str());
+                ImGui::TreePop();
+            }
+        }
+        // Light
+        if (ECS::hasComponent<PointLight>(entity)) {
+            if (ImGui::TreeNode("Light")) {
+                auto& light = ECS::getComponent<PointLight>(entity);
+                ImGui::ColorEdit3("Colour", glm::value_ptr(light.colour));
+                ImGui::DragFloat("Strength", &light.strength, 1, 0, std::numeric_limits<float>::max());
+                ImGui::TreePop();
+            }
+        }
+        // Model
+        if (ECS::hasComponent<Model3D>(entity)) {
+            if (ImGui::TreeNode("Model3D")) {
+                const auto& model = ECS::getComponent<Model3D>(entity);
+                ImGui::Text("Mesh: <0x%X>", model.mesh);
+                ImGui::Text("Material: <0x%X>", model.material);
+
+                bool showBoundingVolume = m_debugFlags.at(entity).test(eDisplayBoundingVolume);
+                ImGui::Checkbox("Show bounding volume", &showBoundingVolume);
+                m_debugFlags.at(entity).set(eDisplayBoundingVolume, showBoundingVolume);
+
+                ImGui::TreePop();
+            }
+        }
+        // Transform
+        if (ECS::hasComponent<Transform>(entity)) {
+            if (ImGui::TreeNode("Transform")) {
+                auto&[position, rotation, scale, transform] = ECS::getComponent<Transform>(entity);
+                ImGui::DragFloat3("Position", glm::value_ptr(position), 0.01f);
+                ImGui::DragFloat4("Rotation", glm::value_ptr(rotation), 0.01f, -1.0f, 1.0f);
+                ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.01f, 0.0f, std::numeric_limits<float>::max());
+
+                bool normalizeRotation = m_debugFlags.at(entity).test(eNormalizeRotation);
+                ImGui::Checkbox("Normalize rotation", &normalizeRotation);
+                m_debugFlags.at(entity).set(eNormalizeRotation, normalizeRotation);
+                if (normalizeRotation)
+                    rotation = glm::normalize(rotation);
+
+                ImGui::SameLine();
+
+                bool showMatrix = m_debugFlags.at(entity).test(eDisplayMatrix);
+                ImGui::Checkbox("Show matrix", &showMatrix);
+                m_debugFlags.at(entity).set(eDisplayMatrix, showMatrix);
+                if (showMatrix)
+                    drawMatrix(transform);
+
+                ImGui::TreePop();
+            }
+        }
+
+        if (ECS::hasComponent<HierarchyComponent>(entity)) {
+            auto& hierarchy = ECS::getComponent<HierarchyComponent>(entity);
+            if (!hierarchy.children.empty()) {
+                ImGui::SeparatorText("Children");
+                for (const ECS::Entity child : hierarchy.children) {
+                    drawNodeRecursive(child);
+                }
+            }
+        }
+
+        ImGui::TreePop();
+    }
+}
+
+void DebugWindow::drawMatrix(const glm::mat4 &matrix) {
+    for (u32 row = 0; row < 4; ++row) {
+        for (u32 col = 0; col < 4; ++col) {
+            ImGui::Text("% .3f", matrix[col][row]);
+            if (col != 3) ImGui::SameLine();
+        }
+    }
 }
