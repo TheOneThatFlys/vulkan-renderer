@@ -81,6 +81,8 @@ add_executable (VulkanRenderer
         src/Volumes.h
 )
 
+set_property(TARGET VulkanRenderer PROPERTY CXX_STANDARD 20)
+
 target_link_libraries(VulkanRenderer PRIVATE glfw)
 target_link_libraries(VulkanRenderer PRIVATE glm::glm)
 target_link_libraries(VulkanRenderer PRIVATE imgui::imgui)
@@ -95,7 +97,7 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
 endif()
 
 # Compile the list of shaders
-function(add_shaders TARGET_NAME)
+function(add_shaders TARGET_NAME FOLDER_PATH)
     set(SHADER_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
     set(SHADER_SOURCES ${ARGN})
     set(SHADER_PRODUCTS)
@@ -107,10 +109,11 @@ function(add_shaders TARGET_NAME)
     foreach(SHADER_SOURCE IN LISTS SHADER_SOURCES)
         get_filename_component(SHADER_NAME ${SHADER_SOURCE} NAME)
         set(SHADER_OUTPUT_PATH "${CMAKE_CURRENT_BINARY_DIR}/shaders/${SHADER_NAME}.spv")
+        set(SHADER_INPUT_PATH "${FOLDER_PATH}/${SHADER_SOURCE}")
 
         add_custom_command(OUTPUT ${SHADER_OUTPUT_PATH} 
-            COMMAND glslc ${SHADER_SOURCE} -o ${SHADER_OUTPUT_PATH}
-            DEPENDS ${SHADER_SOURCE}
+            COMMAND glslc ${SHADER_INPUT_PATH} -o ${SHADER_OUTPUT_PATH}
+            DEPENDS ${SHADER_INPUT_PATH}
             COMMENT "Compiling ${SHADER_NAME}"
         )
         list(APPEND SHADER_PRODUCTS ${SHADER_OUTPUT_PATH})
@@ -119,8 +122,13 @@ function(add_shaders TARGET_NAME)
     add_custom_target(${TARGET_NAME} ALL DEPENDS ${SHADER_PRODUCTS})
 endfunction()
 
-file(GLOB SHADER_SOURCES "${CMAKE_CURRENT_LIST_DIR}/src/shaders/*")
-add_shaders(Shaders ${SHADER_SOURCES})
+set(SHADER_FILES
+        model.vert
+        model.frag
+        line.vert
+        line.frag
+)
+add_shaders(Shaders ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders ${SHADER_FILES})
 add_dependencies(VulkanRenderer Shaders)
 
 # Copy assets folder

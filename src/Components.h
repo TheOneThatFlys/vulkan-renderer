@@ -69,7 +69,7 @@ struct HierarchyComponent {
 };
 
 struct Model3D {
-    Mesh* mesh = nullptr;
+    Mesh<>* mesh = nullptr;
     Material* material = nullptr;
 };
 

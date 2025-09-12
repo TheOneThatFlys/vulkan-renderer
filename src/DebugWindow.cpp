@@ -275,10 +275,8 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
                 m_engine->setPresentMode(isVsync ? vk::PresentModeKHR::eFifo : vk::PresentModeKHR::eImmediate);
             }
 
-            ImGui::SeparatorText("Rasterizer");
-            bool isWireframe = m_engine->getRenderer()->getPolygonMode() == vk::PolygonMode::eLine;
-            if (ImGui::Checkbox("Wireframes", &isWireframe))
-                m_engine->getRenderer()->setPolygonMode(isWireframe ? vk::PolygonMode::eLine : vk::PolygonMode::eFill);
+            ImGui::SeparatorText("Other");
+            ImGui::Checkbox("Show bounding volumes", &m_showBoundingVolumes);
 
             ImGui::EndTabItem();
         }
@@ -296,6 +294,15 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
     ImGui::Render();
     ImDrawData* drawData = ImGui::GetDrawData();
     ImGui_ImplVulkan_RenderDrawData(drawData, *commandBuffer);
+
+    // render bounding volumes
+    if (m_showBoundingVolumes) {
+        const auto renderer = m_engine->getRenderer();
+        BoundingVolumeRenderer& boundingVolumeRenderer = renderer->getBoundingVolumeRenderer();
+        for (const auto entity : renderer->m_entities) {
+            boundingVolumeRenderer.queueSphere(renderer->createBoundingVolume(entity), glm::vec3(1.0f, 1.0f, 1.0f));
+        }
+    }
 
     // update callbacks
     for (auto& [func, time] : m_updateCallbacks) {

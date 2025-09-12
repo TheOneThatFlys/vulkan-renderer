@@ -45,4 +45,6 @@ private:
     bool m_framesFilled = false;
 
     VRAMUsageInfo m_vramUsage;
+
+    bool m_showBoundingVolumes = false;
 };

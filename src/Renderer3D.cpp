@@ -7,10 +7,11 @@
 
 Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
     : m_engine(engine)
+    , m_extent(extent)
     , m_frameUniforms(m_engine, 0)
     , m_modelUniforms(m_engine, 0)
-    , m_fragFrameUniforms(m_engine, 1)
-	, m_extent(extent)
+	, m_fragFrameUniforms(m_engine, 1)
+	, m_boundingVolumeRenderer(m_engine)
 {
 	createPipelines();
 	createDepthBuffer();
@@ -21,8 +22,9 @@ Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
     m_frameUniforms.addToSet(m_frameDescriptor);
     m_fragFrameUniforms.addToSet(m_frameDescriptor);
     m_modelUniforms.addToSet(m_modelDescriptor);
+
     // create camera
-    m_camera = ECS::createEntity();
+	m_camera = ECS::createEntity();
     ECS::addComponent<ControlledCamera>(m_camera, {.aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height)});
     ECS::addComponent<NamedComponent>(m_camera, {"Camera"});
 }
@@ -32,6 +34,7 @@ void Renderer3D::render(const vk::raii::CommandBuffer &commandBuffer, const vk::
 	setDynamicParameters(commandBuffer);
 	setFrameUniforms(commandBuffer);
 	drawModels(commandBuffer);
+	m_boundingVolumeRenderer.draw(commandBuffer);
 	m_engine->getDebugWindow()->draw(commandBuffer);
 	endRender(commandBuffer, image);
 }
@@ -50,10 +53,14 @@ RendererDebugInfo Renderer3D::getDebugInfo() const {
 	return m_debugInfo;
 }
 
+BoundingVolumeRenderer & Renderer3D::getBoundingVolumeRenderer() {
+	return m_boundingVolumeRenderer;
+}
+
 void Renderer3D::createPipelines() {
 	m_pipeline = Pipeline::Builder(m_engine)
-		.addShaderStage("shaders/shader.vert.spv")
-        .addShaderStage("shaders/shader.frag.spv")
+		.addShaderStage("shaders/model.vert.spv")
+        .addShaderStage("shaders/model.frag.spv")
         .setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
 
         .addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
@@ -110,8 +117,6 @@ void Renderer3D::beginRender(const vk::raii::CommandBuffer& commandBuffer, const
 	};
 
 	commandBuffer.beginRendering(renderingInfo);
-	commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline->getPipeline());
-
 }
 
 void Renderer3D::setDynamicParameters(const vk::raii::CommandBuffer& commandBuffer) const {
@@ -148,6 +153,7 @@ void Renderer3D::setFrameUniforms(const vk::raii::CommandBuffer& commandBuffer) 
 }
 
 void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
+	commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline->getPipeline());
 	m_debugInfo = {
 		.totalInstanceCount = 0,
 		.renderedInstanceCount = 0
@@ -195,4 +201,83 @@ Sphere Renderer3D::createBoundingVolume(const ECS::Entity entity) const {
 		.center = Transform::getTransform(transform.transform),
 		.radius = model.mesh->getMaxDistance() * maxScale
 	};
+}
+
+BoundingVolumeRenderer::BoundingVolumeRenderer(VulkanEngine* engine)
+	: m_engine(engine)
+	, m_frameUniforms(engine, 0)
+	, m_modelUniforms(engine, 0)
+{
+	m_pipeline = Pipeline::Builder(engine)
+		.addShaderStage("shaders/line.vert.spv")
+		.addShaderStage("shaders/line.frag.spv")
+		.setVertexInfo(BasicVertex::getBindingDescription(), BasicVertex::getAttributeDescriptions())
+		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
+		.addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex) // model data
+		.setTopology(vk::PrimitiveTopology::eLineList)
+		.create();
+
+	m_frameDescriptor = m_pipeline->createDescriptorSet(FRAME_SET_NUMBER);
+	m_modelDescriptor = m_pipeline->createDescriptorSet(MODEL_SET_NUMBER);
+
+	m_frameUniforms.addToSet(m_frameDescriptor);
+	m_modelUniforms.addToSet(m_modelDescriptor);
+
+	createVolumes();
+}
+
+void BoundingVolumeRenderer::draw(const vk::raii::CommandBuffer& commandBuffer) {
+	commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline->getPipeline());
+
+	const auto camera = ECS::getSystem<ControlledCameraSystem>();
+	m_frameUniforms.setData({
+		.view = camera->getViewMatrix(),
+		.projection = camera->getProjectionMatrix(),
+	});
+	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline->getLayout(), FRAME_SET_NUMBER, {*m_frameDescriptor}, {});
+
+	u32 i = 0;
+	for (const auto& sphere : m_sphereQueue) {
+		m_modelUniforms.setData(i, {
+			.transform = glm::scale(glm::translate(glm::mat4(1.0f), sphere.sphere.center), glm::vec3(sphere.sphere.radius)),
+			.colour = sphere.colour
+		});
+		commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline->getLayout(), MODEL_SET_NUMBER, {*m_modelDescriptor}, {i * m_modelUniforms.getItemSize()});
+		m_sphereMesh->draw(commandBuffer);
+		++i;
+	}
+
+	m_sphereQueue.clear();
+}
+
+void BoundingVolumeRenderer::queueSphere(const Sphere &sphere, const glm::vec3 &colour) {
+	m_sphereQueue.emplace_back(sphere, colour);
+}
+
+void BoundingVolumeRenderer::createVolumes() {
+	// sphere
+	constexpr u32 steps = 32;
+	constexpr float dTheta = glm::radians(360.0f / static_cast<float>(steps));
+
+	std::vector<BasicVertex> vertices;
+	std::vector<u32> indexes;
+	u32 index = 0;
+	for (i32 axis = 0; axis < 3; ++axis) {
+		const i32 otherAxis = (axis + 1) % 3;
+		for (u32 i = 0; i < steps; ++i) {
+			const float a = std::cos(dTheta * static_cast<float>(i));
+			const float b = std::sin(dTheta * static_cast<float>(i));
+			auto position = glm::vec3(0.0f);
+			position[axis] = a;
+			position[otherAxis] = b;
+			vertices.emplace_back(position);
+			indexes.emplace_back(index);
+			++index;
+			indexes.emplace_back(index);
+		}
+		indexes.pop_back();
+		indexes.push_back(index - steps);
+	}
+
+	m_sphereMesh = std::make_unique<Mesh<BasicVertex>>(m_engine, vertices, indexes);
 }

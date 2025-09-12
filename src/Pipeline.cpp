@@ -100,6 +100,11 @@ Pipeline::Builder & Pipeline::Builder::setPolygonMode(const vk::PolygonMode poly
 	return *this;
 }
 
+Pipeline::Builder & Pipeline::Builder::setTopology(const vk::PrimitiveTopology topology) {
+	m_inputAssembly.topology = topology;
+	return *this;
+}
+
 std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 	assert(m_shaders.contains(vk::ShaderStageFlagBits::eVertex));
 	assert(m_shaders.contains(vk::ShaderStageFlagBits::eFragment));

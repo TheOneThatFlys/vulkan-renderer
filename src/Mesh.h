@@ -6,21 +6,20 @@
 #include "Vertex.h"
 
 class VulkanEngine;
+template<typename V = Vertex>
 class Mesh {
 public:
-    Mesh(VulkanEngine* engine, const std::vector<Vertex>& vertices, const std::vector<u32> &indexes);
-    Mesh(VulkanEngine* engine, const std::vector<Vertex>& vertices, const std::vector<u16> &indexes);
+    Mesh(VulkanEngine* engine, const std::vector<V>& vertices, const std::vector<u32> &indexes);
     void draw(const vk::raii::CommandBuffer &commandBuffer) const;
 
     float getMaxDistance() const;
 private:
-    void createVertexBuffer(const std::vector<Vertex> &vertices);
+    void createVertexBuffer(const std::vector<V> &vertices);
 
-    template<typename T>
-    void createIndexBuffer(const std::vector<T>& indexes);
+    void createIndexBuffer(const std::vector<u32>& indexes);
 
     // calculate the distance of the furthest vertex from the origin
-    float resolveMaxDistance(const std::vector<Vertex>& vertices);
+    float resolveMaxDistance(const std::vector<V>& vertices);
 
     VulkanEngine* m_engine = nullptr;
 

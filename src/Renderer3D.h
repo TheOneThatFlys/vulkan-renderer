@@ -24,8 +24,44 @@ struct FragFrameData {
 };
 
 struct RendererDebugInfo {
-    u32 totalInstanceCount;
-    u32 renderedInstanceCount;
+    u32 totalInstanceCount = 0;
+    u32 renderedInstanceCount = 0;
+};
+
+class BoundingVolumeRenderer {
+public:
+    struct BoundingVolumeUniform {
+        glm::mat4 transform;
+        glm::vec3 colour;
+    };
+
+    explicit BoundingVolumeRenderer(VulkanEngine* engine);
+
+    void draw(const vk::raii::CommandBuffer &commandBuffer);
+
+    void queueSphere(const Sphere& sphere, const glm::vec3& colour);
+
+private:
+    struct ColouredSphere {
+        Sphere sphere;
+        glm::vec3 colour;
+    };
+
+    void createVolumes();
+
+    VulkanEngine* m_engine;
+
+    std::unique_ptr<Pipeline> m_pipeline = nullptr;
+
+    vk::raii::DescriptorSet m_frameDescriptor = nullptr;
+    vk::raii::DescriptorSet m_modelDescriptor = nullptr;
+
+    UniformBufferBlock<FrameUniforms> m_frameUniforms;
+    DynamicUniformBufferBlock<BoundingVolumeUniform> m_modelUniforms;
+
+    std::vector<ColouredSphere> m_sphereQueue;
+
+    std::unique_ptr<Mesh<BasicVertex>> m_sphereMesh = nullptr;
 };
 
 class Renderer3D final : public ECS::System {
@@ -35,10 +71,11 @@ public:
 
     const Pipeline* getPipeline() const;
 
-    void setPolygonMode(vk::PolygonMode mode) { m_polygonMode = mode; }
-    vk::PolygonMode getPolygonMode() const { return m_polygonMode; }
     void setExtent(vk::Extent2D extent);
     RendererDebugInfo getDebugInfo() const;
+    BoundingVolumeRenderer& getBoundingVolumeRenderer();
+
+    Sphere createBoundingVolume(ECS::Entity entity) const;
 
 private:
     void createPipelines();
@@ -50,12 +87,11 @@ private:
     void drawModels(const vk::raii::CommandBuffer &commandBuffer);
     void endRender(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image) const;
 
-    Sphere createBoundingVolume(ECS::Entity entity) const;
-
     VulkanEngine* m_engine;
     vk::Extent2D m_extent;
 
     std::unique_ptr<Pipeline> m_pipeline = nullptr;
+    std::unique_ptr<Pipeline> m_linePipeline = nullptr;
 
     vk::raii::Image m_depthBuffer = nullptr;
     vk::raii::DeviceMemory m_depthBufferMemory = nullptr;
@@ -70,7 +106,7 @@ private:
     DynamicUniformBufferBlock<ModelUniforms> m_modelUniforms;
     UniformBufferBlock<FragFrameData> m_fragFrameUniforms;
 
-    vk::PolygonMode m_polygonMode = vk::PolygonMode::eFill;
+    BoundingVolumeRenderer m_boundingVolumeRenderer;
 
     RendererDebugInfo m_debugInfo;
 };

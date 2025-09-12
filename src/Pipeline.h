@@ -15,6 +15,7 @@ public:
         Builder& addBinding(u32 set, u32 binding, vk::DescriptorType type, vk::ShaderStageFlagBits stage);
         Builder& addDynamicState(vk::DynamicState state);
         Builder& setPolygonMode(vk::PolygonMode polygonMode);
+        Builder& setTopology(vk::PrimitiveTopology topology);
         std::unique_ptr<Pipeline> create();
     private:
 

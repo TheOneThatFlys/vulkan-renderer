@@ -3,6 +3,29 @@
 #include <vulkan/vulkan_raii.hpp>
 #include <glm/glm.hpp>
 
+struct BasicVertex {
+    glm::vec3 pos;
+    static vk::VertexInputBindingDescription getBindingDescription() {
+        return {
+            .binding = 0,
+            .stride = sizeof(BasicVertex),
+            .inputRate = vk::VertexInputRate::eVertex
+        };
+    }
+
+    static std::vector<vk::VertexInputAttributeDescription> getAttributeDescriptions() {
+        std::vector<vk::VertexInputAttributeDescription> descriptions;
+        // position
+        descriptions.push_back({
+            .location = 0,
+            .binding = 0,
+            .format = vk::Format::eR32G32B32Sfloat,
+            .offset = offsetof(BasicVertex, pos)
+        });
+        return descriptions;
+    }
+};
+
 struct Vertex {
     glm::vec3 pos;
     glm::vec2 uv;
@@ -23,7 +46,7 @@ struct Vertex {
         descriptions.push_back({
             .location = 0,
             .binding = 0,
-            .format = vk::Format::eR32G32B32A32Sfloat,
+            .format = vk::Format::eR32G32B32Sfloat,
             .offset = offsetof(Vertex, pos)
         });
         // color

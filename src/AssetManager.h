@@ -17,7 +17,7 @@ public:
     explicit AssetManager(VulkanEngine* engine);
     ECS::Entity loadGLB(const std::string& path);
 private:
-    std::unique_ptr<Mesh> loadMesh(const tinygltf::Model &ctx, const tinygltf::Mesh &mesh);
+    std::unique_ptr<Mesh<>> loadMesh(const tinygltf::Model &ctx, const tinygltf::Mesh &mesh);
     void loadImage(std::string path);
 
     static void validateAccessor(const tinygltf::Accessor& accessor, u32 componentType, u32 type);
@@ -26,7 +26,7 @@ private:
 
     tinygltf::TinyGLTF m_loader;
 
-    std::vector<std::unique_ptr<Mesh>> m_meshes;
+    std::vector<std::unique_ptr<Mesh<>>> m_meshes;
     std::vector<std::unique_ptr<Material>> m_materials;
     std::vector<std::unique_ptr<Texture>> m_textures;
 

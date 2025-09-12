@@ -51,7 +51,7 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
     // temp pointers to resolve arrays
     std::vector<Texture*> textures;
     std::vector<Material*> materials;
-    std::vector<Mesh*> meshes;
+    std::vector<Mesh<>*> meshes;
     textures.reserve(ctx.textures.size());
     materials.reserve(ctx.materials.size());
     meshes.reserve(ctx.meshes.size());
@@ -177,7 +177,7 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
     return root;
 }
 
-std::unique_ptr<Mesh> AssetManager::loadMesh(const tinygltf::Model& ctx, const tinygltf::Mesh &mesh) {
+std::unique_ptr<Mesh<>> AssetManager::loadMesh(const tinygltf::Model& ctx, const tinygltf::Mesh &mesh) {
     if (mesh.primitives.size() > 1) {
         Logger::warn(std::format("Mesh loader does not currently support more than one 1 primitive per mesh, only the first was loaded ({} total)", mesh.primitives.size()));
     }
@@ -227,30 +227,27 @@ std::unique_ptr<Mesh> AssetManager::loadMesh(const tinygltf::Model& ctx, const t
     const tinygltf::Buffer& indexBuffer = ctx.buffers[indexBufferView.buffer];
 
     const size_t indexStart = indexAccessor.byteOffset + indexBufferView.byteOffset;
-    if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
-        std::vector<u32> indexes;
-        indexes.reserve(indexAccessor.count);
-        for (u32 i = 0; i < indexAccessor.count; ++i) {
-            const auto index = *reinterpret_cast<const u32*>(&indexBuffer.data[indexStart + i * 4]);
-            indexes.emplace_back(index);
-        }
+    std::vector<u32> indexes;
+    indexes.reserve(indexAccessor.count);
+    switch (indexAccessor.componentType) {
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+            for (u32 i = 0; i < indexAccessor.count; ++i) {
+                const auto index = *reinterpret_cast<const u32*>(&indexBuffer.data[indexStart + i * 4]);
+                indexes.emplace_back(index);
+            }
+            break;
 
-        return std::make_unique<Mesh>(m_engine, vertices, indexes);
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+            for (u32 i = 0; i < indexAccessor.count; ++i) {
+                const auto index = static_cast<u32>(*reinterpret_cast<const u16*>(&indexBuffer.data[indexStart + i * 2]));
+                indexes.emplace_back(index);
+            }
+            break;
+
+        default:
+            Logger::error(std::format("Unknown index type: {}", indexAccessor.componentType));
     }
-
-    if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
-        std::vector<u16> indexes;
-        indexes.reserve(indexAccessor.count);
-        for (u32 i = 0; i < indexAccessor.count; ++i) {
-            const auto index = *reinterpret_cast<const u16*>(&indexBuffer.data[indexStart + i * 2]);
-            indexes.emplace_back(index);
-        }
-        return std::make_unique<Mesh>(m_engine, vertices, indexes);
-    }
-
-    Logger::error(std::format("Unknown index type: {}", indexAccessor.componentType));
-
-    return nullptr;
+    return std::make_unique<Mesh<>>(m_engine, vertices, indexes);
 }
 
 void AssetManager::loadImage(std::string path) {
