@@ -148,9 +148,6 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
                 m_engine->setPresentMode(isVsync ? vk::PresentModeKHR::eFifo : vk::PresentModeKHR::eImmediate);
             }
 
-            ImGui::SeparatorText("Other");
-            ImGui::Checkbox("Show bounding volumes", &m_showBoundingVolumes);
-
             ImGui::EndTabItem();
         }
 
@@ -177,10 +174,10 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
 
     // render bounding volumes
     const auto renderer = m_engine->getRenderer();
-    BoundingVolumeRenderer& boundingVolumeRenderer = renderer->getBoundingVolumeRenderer();
+    BoundingVolumeRenderer* boundingVolumeRenderer = renderer->getBoundingVolumeRenderer();
     for (const auto entity : renderer->m_entities) {
         if (!m_debugFlags.at(entity).test(eDisplayBoundingVolume)) continue;
-        boundingVolumeRenderer.queueSphere(renderer->createBoundingVolume(entity), glm::vec3(1.0f, 1.0f, 1.0f));
+        boundingVolumeRenderer->queueSphere(renderer->createBoundingVolume(entity), glm::vec3(1.0f, 1.0f, 1.0f));
     }
 
     // update callbacks

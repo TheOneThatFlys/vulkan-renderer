@@ -79,6 +79,8 @@ add_executable (VulkanRenderer
         src/LightSystem.cpp
         src/LightSystem.h
         src/Volumes.h
+        src/BoundingVolumeRenderer.cpp
+        src/BoundingVolumeRenderer.h
 )
 
 set_property(TARGET VulkanRenderer PROPERTY CXX_STANDARD 20)

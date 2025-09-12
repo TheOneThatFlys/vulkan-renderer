@@ -57,6 +57,4 @@ private:
     VRAMUsageInfo m_vramUsage;
 
     std::array<std::bitset<32>, ECS::MAX_ENTITIES> m_debugFlags;
-
-    bool m_showBoundingVolumes = false;
 };

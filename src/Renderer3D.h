@@ -6,6 +6,7 @@
 #include "LightSystem.h"
 #include "Pipeline.h"
 #include "UniformBufferBlock.h"
+#include "BoundingVolumeRenderer.h"
 
 struct FrameUniforms {
     glm::mat4 view;
@@ -28,42 +29,6 @@ struct RendererDebugInfo {
     u32 renderedInstanceCount = 0;
 };
 
-class BoundingVolumeRenderer {
-public:
-    struct BoundingVolumeUniform {
-        glm::mat4 transform;
-        glm::vec3 colour;
-    };
-
-    explicit BoundingVolumeRenderer(VulkanEngine* engine);
-
-    void draw(const vk::raii::CommandBuffer &commandBuffer);
-
-    void queueSphere(const Sphere& sphere, const glm::vec3& colour);
-
-private:
-    struct ColouredSphere {
-        Sphere sphere;
-        glm::vec3 colour;
-    };
-
-    void createVolumes();
-
-    VulkanEngine* m_engine;
-
-    std::unique_ptr<Pipeline> m_pipeline = nullptr;
-
-    vk::raii::DescriptorSet m_frameDescriptor = nullptr;
-    vk::raii::DescriptorSet m_modelDescriptor = nullptr;
-
-    UniformBufferBlock<FrameUniforms> m_frameUniforms;
-    DynamicUniformBufferBlock<BoundingVolumeUniform> m_modelUniforms;
-
-    std::vector<ColouredSphere> m_sphereQueue;
-
-    std::unique_ptr<Mesh<BasicVertex>> m_sphereMesh = nullptr;
-};
-
 class Renderer3D final : public ECS::System {
 public:
     explicit Renderer3D(VulkanEngine *engine, vk::Extent2D extent);
@@ -73,7 +38,7 @@ public:
 
     void setExtent(vk::Extent2D extent);
     RendererDebugInfo getDebugInfo() const;
-    BoundingVolumeRenderer& getBoundingVolumeRenderer();
+    BoundingVolumeRenderer* getBoundingVolumeRenderer() const;
 
     Sphere createBoundingVolume(ECS::Entity entity) const;
 
@@ -106,7 +71,7 @@ private:
     DynamicUniformBufferBlock<ModelUniforms> m_modelUniforms;
     UniformBufferBlock<FragFrameData> m_fragFrameUniforms;
 
-    BoundingVolumeRenderer m_boundingVolumeRenderer;
+    std::unique_ptr<BoundingVolumeRenderer> m_boundingVolumeRenderer;
 
     RendererDebugInfo m_debugInfo;
 };
