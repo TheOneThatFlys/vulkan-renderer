@@ -40,6 +40,8 @@ private:
 
     void drawNodeRecursive(ECS::Entity entity);
 
+    void setFlagForAllEntities(DebugFlags flag, bool value);
+
     static void drawMatrix(const glm::mat4& mat);
 
     VulkanEngine* m_engine;

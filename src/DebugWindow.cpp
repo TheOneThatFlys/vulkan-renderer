@@ -154,6 +154,20 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
         if (ImGui::BeginTabItem("ECS")) {
             const auto& entities = ECS::getSystem<AllEntities>()->get();
             ImGui::Text("Total entities: %u", entities.size());
+
+            ImGui::Separator();
+
+            ImGui::Text("Bounding volumes");
+            if (ImGui::Button("Show all")) {
+                setFlagForAllEntities(eDisplayBoundingVolume, true);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Hide all")) {
+                setFlagForAllEntities(eDisplayBoundingVolume, false);
+            }
+
+            ImGui::Separator();
+            
             for (const ECS::Entity entity : entities) {
                 const auto hierarchy = ECS::getComponentOptional<HierarchyComponent>(entity);
                 if (!hierarchy || hierarchy->parent == -1) {
@@ -314,6 +328,12 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
         }
 
         ImGui::TreePop();
+    }
+}
+
+void DebugWindow::setFlagForAllEntities(const DebugFlags flag, const bool value) {
+    for (const auto entity : ECS::getSystem<AllEntities>()->get()) {
+        m_debugFlags.at(entity).set(flag, value);
     }
 }
 
