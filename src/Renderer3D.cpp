@@ -73,6 +73,18 @@ void Renderer3D::createPipelines() {
 
         .addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex) // model data
 		.create();
+
+	m_xrayPipeline = Pipeline::Builder(m_engine)
+		.addShaderStage("shaders/xray.vert.spv")
+		.addShaderStage("shaders/xray.frag.spv")
+		.setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
+		.setPolygonMode(vk::PolygonMode::eLine)
+		.disableDepthTest()
+		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex)
+		.addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex)
+        .addBinding(0, 1, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment) // unused
+		.create();
+
 }
 
 void Renderer3D::createDepthBuffer() {
@@ -161,7 +173,8 @@ void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
 
 	const Frustum cameraFrustum = ECS::getSystem<ControlledCameraSystem>()->getFrustum();
 
-	u32 i = 0;
+	i32 highlightedIndex = -1;
+	i32 i = 0;
 	for (const ECS::Entity entity : m_entities) {
 		++m_debugInfo.totalInstanceCount;
 
@@ -178,7 +191,16 @@ void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
 
 		modelInfo.material->use(commandBuffer, m_pipeline->getLayout());
 		modelInfo.mesh->draw(commandBuffer);
+
+		if (m_highlightedEntity == entity) highlightedIndex = i;
+
 		++i;
+	}
+	if (highlightedIndex != -1) {
+		commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_xrayPipeline->getLayout(), FRAME_SET_NUMBER, {*m_frameDescriptor}, nullptr);
+		commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_xrayPipeline->getPipeline());
+		commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_xrayPipeline->getLayout(), MODEL_SET_NUMBER, {*m_modelDescriptor}, {highlightedIndex * m_modelUniforms.getItemSize()});
+		ECS::getComponent<Model3D>(m_highlightedEntity).mesh->draw(commandBuffer);
 	}
 }
 
@@ -201,4 +223,12 @@ Sphere Renderer3D::createBoundingVolume(const ECS::Entity entity) const {
 		.center = Transform::getTransform(transform.transform),
 		.radius = model.mesh->getMaxDistance() * maxScale
 	};
+}
+
+void Renderer3D::highlightEntity(ECS::Entity entity) {
+	m_highlightedEntity = entity;
+}
+
+ECS::Entity Renderer3D::getHighlightedEntity() const {
+	return m_highlightedEntity;
 }

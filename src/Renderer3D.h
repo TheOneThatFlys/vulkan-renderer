@@ -42,6 +42,9 @@ public:
 
     Sphere createBoundingVolume(ECS::Entity entity) const;
 
+    void highlightEntity(ECS::Entity entity);
+    ECS::Entity getHighlightedEntity() const;
+
 private:
     void createPipelines();
     void createDepthBuffer();
@@ -56,7 +59,7 @@ private:
     vk::Extent2D m_extent;
 
     std::unique_ptr<Pipeline> m_pipeline = nullptr;
-    std::unique_ptr<Pipeline> m_linePipeline = nullptr;
+    std::unique_ptr<Pipeline> m_xrayPipeline = nullptr;
 
     vk::raii::Image m_depthBuffer = nullptr;
     vk::raii::DeviceMemory m_depthBufferMemory = nullptr;
@@ -74,4 +77,6 @@ private:
     std::unique_ptr<BoundingVolumeRenderer> m_boundingVolumeRenderer;
 
     RendererDebugInfo m_debugInfo;
+
+    ECS::Entity m_highlightedEntity = -1;
 };

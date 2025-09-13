@@ -16,6 +16,7 @@ public:
         Builder& addDynamicState(vk::DynamicState state);
         Builder& setPolygonMode(vk::PolygonMode polygonMode);
         Builder& setTopology(vk::PrimitiveTopology topology);
+        Builder& disableDepthTest();
         std::unique_ptr<Pipeline> create();
     private:
 

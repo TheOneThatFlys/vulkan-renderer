@@ -153,11 +153,9 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
 
         if (ImGui::BeginTabItem("ECS")) {
             const auto& entities = ECS::getSystem<AllEntities>()->get();
-            ImGui::Text("Total entities: %u", entities.size());
 
-            ImGui::Separator();
+            ImGui::SeparatorText("Bounding volumes");
 
-            ImGui::Text("Bounding volumes");
             if (ImGui::Button("Show all")) {
                 setFlagForAllEntities(eDisplayBoundingVolume, true);
             }
@@ -166,8 +164,17 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
                 setFlagForAllEntities(eDisplayBoundingVolume, false);
             }
 
-            ImGui::Separator();
-            
+            ImGui::SeparatorText("Highlighting");
+            int s = m_engine->getRenderer()->getHighlightedEntity();
+            ImGui::InputInt("Current ID", &s);
+            m_engine->getRenderer()->highlightEntity(s);
+            if (ImGui::Button("Clear")) {
+                m_engine->getRenderer()->highlightEntity(-1);
+            }
+
+            ImGui::SeparatorText("Scene");
+
+            ImGui::Text("Total entities: %u", entities.size());
             for (const ECS::Entity entity : entities) {
                 const auto hierarchy = ECS::getComponentOptional<HierarchyComponent>(entity);
                 if (!hierarchy || hierarchy->parent == -1) {
@@ -224,12 +231,14 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
         name = std::format("Entity #{}", entity);
     }
 
-    if (ImGui::TreeNodeEx(name.c_str())) {
+    static constexpr auto defaultTreeFlags = ImGuiTreeNodeFlags_SpanAvailWidth;
+
+    if (ImGui::TreeNodeEx(name.c_str(), defaultTreeFlags)) {
 
         // Components sorted alphabetically
         ImGui::SeparatorText("Components");
         // Meta
-        if (ImGui::TreeNode("Meta")) {
+        if (ImGui::TreeNodeEx("Meta", defaultTreeFlags)) {
             ImGui::Text("ID: %d", entity);
             ImGui::Text(std::format("Signature: {}", ECS::getSignature(entity).to_string()).c_str());
             ImGui::TreePop();
@@ -237,7 +246,7 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
 
         // Camera
         if (ECS::hasComponent<ControlledCamera>(entity)) {
-            if (ImGui::TreeNode("Camera")) {
+            if (ImGui::TreeNodeEx("Camera", defaultTreeFlags)) {
                 auto& camera = ECS::getComponent<ControlledCamera>(entity);
                 ImGui::DragFloat3("Position", glm::value_ptr(camera.position), 0.1f);
                 float yawPitchTemp[] = {camera.yaw, camera.pitch};
@@ -255,7 +264,7 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
 
         // Hierarchy
         if (ECS::hasComponent<HierarchyComponent>(entity)) {
-            if (ImGui::TreeNode("Hierarchy")) {
+            if (ImGui::TreeNodeEx("Hierarchy", ImGuiTreeNodeFlags_SpanAvailWidth)) {
                 auto& hierarchy = ECS::getComponent<HierarchyComponent>(entity);
                 ImGui::Text("Parent: %d", hierarchy.parent);
                 std::string childrenString;
@@ -270,7 +279,7 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
         }
         // Light
         if (ECS::hasComponent<PointLight>(entity)) {
-            if (ImGui::TreeNode("Light")) {
+            if (ImGui::TreeNodeEx("Light", defaultTreeFlags)) {
                 auto& light = ECS::getComponent<PointLight>(entity);
                 ImGui::ColorEdit3("Colour", glm::value_ptr(light.colour));
                 ImGui::DragFloat("Strength", &light.strength, 1, 0, std::numeric_limits<float>::max());
@@ -279,7 +288,7 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
         }
         // Model
         if (ECS::hasComponent<Model3D>(entity)) {
-            if (ImGui::TreeNode("Model3D")) {
+            if (ImGui::TreeNodeEx("Model3D", defaultTreeFlags)) {
                 const auto& model = ECS::getComponent<Model3D>(entity);
                 ImGui::Text("Mesh: <0x%X>", model.mesh);
                 ImGui::Text("Material: <0x%X>", model.material);
@@ -288,12 +297,16 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
                 ImGui::Checkbox("Show bounding volume", &showBoundingVolume);
                 m_debugFlags.at(entity).set(eDisplayBoundingVolume, showBoundingVolume);
 
+                if (ImGui::Button("Highlight in world")) {
+                    m_engine->getRenderer()->highlightEntity(entity);
+                }
+
                 ImGui::TreePop();
             }
         }
         // Transform
         if (ECS::hasComponent<Transform>(entity)) {
-            if (ImGui::TreeNode("Transform")) {
+            if (ImGui::TreeNodeEx("Transform", defaultTreeFlags)) {
                 auto&[position, rotation, scale, transform] = ECS::getComponent<Transform>(entity);
                 ImGui::DragFloat3("Position", glm::value_ptr(position), 0.01f);
                 ImGui::DragFloat4("Rotation", glm::value_ptr(rotation), 0.01f, -1.0f, 1.0f);

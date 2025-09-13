@@ -105,6 +105,12 @@ Pipeline::Builder & Pipeline::Builder::setTopology(const vk::PrimitiveTopology t
 	return *this;
 }
 
+Pipeline::Builder & Pipeline::Builder::disableDepthTest() {
+	m_depthStencil.depthTestEnable = vk::False;
+	m_depthStencil.depthWriteEnable = vk::False;
+	return *this;
+}
+
 std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 	assert(m_shaders.contains(vk::ShaderStageFlagBits::eVertex));
 	assert(m_shaders.contains(vk::ShaderStageFlagBits::eFragment));

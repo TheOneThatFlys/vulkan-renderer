@@ -275,6 +275,7 @@ void VulkanEngine::createLogicalDevice() {
 	}
 
 	vk::PhysicalDeviceFeatures deviceFeatures = {
+		.fillModeNonSolid = vk::True,
 		.samplerAnisotropy = vk::True
 	};
 	vk::StructureChain createInfo = {
