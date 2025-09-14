@@ -393,13 +393,17 @@ void VulkanEngine::createQueryPool() {
 
 void VulkanEngine::createDescriptorPool() {
 	std::array poolSizes = {
-		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBuffer, 64},
-		vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler, 64},
-		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBufferDynamic, 64}
+		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBuffer, 256},
+		vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler, 256},
+		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBufferDynamic, 32}
 	};
+	u32 maxSets = 0;
+	for (const auto& poolSize : poolSizes) {
+		maxSets += poolSize.descriptorCount;
+	}
 	vk::DescriptorPoolCreateInfo poolInfo = {
 		.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-		.maxSets = 256,
+		.maxSets = maxSets,
 		.poolSizeCount = static_cast<u32>(poolSizes.size()),
 		.pPoolSizes = poolSizes.data(),
 	};
@@ -457,6 +461,7 @@ void VulkanEngine::pickPhysicalDevice() {
 	if (devices.empty())
 		throw std::runtime_error("Failed to find GPUs with Vulkan support");
 	m_physicalDevice = devices[0];
+	Logger::info("Selected GPU: {}", std::string(m_physicalDevice.getProperties().deviceName));
 }
 
 bool VulkanEngine::checkDeviceExtensionSupport(const vk::raii::PhysicalDevice& device) {

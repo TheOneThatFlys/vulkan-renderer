@@ -153,7 +153,7 @@ private:
 	vk::raii::QueryPool m_queryPool = nullptr;
 	vk::raii::DescriptorPool m_descriptorPool = nullptr;
 
-	std::unique_ptr<AssetManager> m_assetManager = nullptr;
-	std::unique_ptr<DebugWindow> m_debugWindow = nullptr;
+	std::unique_ptr<AssetManager> m_assetManager;
+	std::unique_ptr<DebugWindow> m_debugWindow;
 };
 

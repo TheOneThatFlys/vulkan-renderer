@@ -10,7 +10,8 @@ Pipeline::Builder::Builder(VulkanEngine* engine) : m_engine(engine) {
 
 	m_dynamicStates = { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
 
-	m_viewportState = {
+	// this needs to explicitly be vk::PipelineViewportStateCreateInfo for some reason
+	m_viewportState = vk::PipelineViewportStateCreateInfo {
 		.viewportCount = 1,
 		.scissorCount = 1,
 	};
@@ -75,7 +76,7 @@ Pipeline::Builder & Pipeline::Builder::addShaderStage(std::string path) {
 		Logger::warn("Unrecognised shader stage: {}", path);
 		stage = vk::ShaderStageFlagBits::eAll;
 	}
-	const std::vector<char> code = readFile(path.c_str());
+	const std::vector<char> code = readFile(path);
 	const vk::ShaderModuleCreateInfo createInfo = {
 		.codeSize = code.size() * sizeof(char),
 		.pCode = reinterpret_cast<const u32*>(code.data())

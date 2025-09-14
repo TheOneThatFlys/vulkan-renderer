@@ -42,9 +42,9 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
     std::string error, warning;
     m_loader.LoadBinaryFromFile(&ctx, &error, &warning, path);
     if (!error.empty())
-        Logger::error(error);
+        Logger::error("Error loading '{}': {}", path, error);
     if (!warning.empty())
-        Logger::warn(warning);
+        Logger::warn("Warning loading '{}': {}", path, warning);
 
     auto loadTime = std::chrono::high_resolution_clock::now();
 

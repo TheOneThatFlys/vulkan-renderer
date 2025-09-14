@@ -3,8 +3,6 @@
 #
 cmake_minimum_required (VERSION 3.10)
 
-set(CMAKE_CXX_SCAN_FOR_MODULES ON)
-
 project ("VulkanRenderer")
 
 find_package(glfw3 CONFIG REQUIRED)
@@ -13,35 +11,6 @@ find_package(imgui CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(Stb REQUIRED)
 
-
-# set up Vulkan C++ module
-add_library(VulkanCppModule)
-add_library(Vulkan::cppm ALIAS VulkanCppModule)
-
-target_compile_definitions(VulkanCppModule PUBLIC
-        VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
-        VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1
-        VULKAN_HPP_NO_SPACESHIP_OPERATOR=1
-)
-target_include_directories(VulkanCppModule
-        PRIVATE
-        "${Vulkan_INCLUDE_DIR}"
-)
-target_link_libraries(VulkanCppModule
-        PUBLIC
-        Vulkan::Vulkan
-)
-
-set_target_properties(VulkanCppModule PROPERTIES CXX_STANDARD 20)
-
-target_sources(VulkanCppModule
-        PUBLIC
-        FILE_SET cxx_modules TYPE CXX_MODULES
-        BASE_DIRS
-        "${Vulkan_INCLUDE_DIR}"
-        FILES
-        "${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm"
-)
 
 # Add source to this project's executable.
 add_executable (VulkanRenderer
@@ -83,12 +52,16 @@ add_executable (VulkanRenderer
         src/BoundingVolumeRenderer.h
 )
 
-set_property(TARGET VulkanRenderer PROPERTY CXX_STANDARD 20)
+target_compile_definitions(VulkanRenderer PUBLIC
+        VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1
+        VULKAN_HPP_NO_SPACESHIP_OPERATOR=1
+        VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+)
 
 target_link_libraries(VulkanRenderer PRIVATE glfw)
 target_link_libraries(VulkanRenderer PRIVATE glm::glm)
 target_link_libraries(VulkanRenderer PRIVATE imgui::imgui)
-target_link_libraries(VulkanRenderer PRIVATE Vulkan::cppm)
+target_link_libraries(VulkanRenderer PRIVATE Vulkan::Vulkan)
 
 find_path(TINYGLTF_INCLUDE_DIRS "tiny_gltf.h")
 target_include_directories(VulkanRenderer PRIVATE ${TINYGLTF_INCLUDE_DIRS})
@@ -113,8 +86,8 @@ function(add_shaders TARGET_NAME FOLDER_PATH)
         set(SHADER_OUTPUT_PATH "${CMAKE_CURRENT_BINARY_DIR}/shaders/${SHADER_NAME}.spv")
         set(SHADER_INPUT_PATH "${FOLDER_PATH}/${SHADER_SOURCE}")
 
-        add_custom_command(OUTPUT ${SHADER_OUTPUT_PATH} 
-            COMMAND glslc ${SHADER_INPUT_PATH} -o ${SHADER_OUTPUT_PATH}
+        add_custom_command(OUTPUT ${SHADER_OUTPUT_PATH}
+            COMMAND Vulkan::glslc ${SHADER_INPUT_PATH} -o ${SHADER_OUTPUT_PATH}
             DEPENDS ${SHADER_INPUT_PATH}
             COMMENT "Compiling ${SHADER_NAME}"
         )

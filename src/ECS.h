@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <cassert>
 #include <ranges>
-#include <optional>
+#include <memory>
 #include <unordered_set>
 
 #include "Common.h"
