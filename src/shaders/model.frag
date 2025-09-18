@@ -126,7 +126,7 @@ void main() {
         Lo += pointLightContribution(lights[i], params);
     }
 
-    vec3 ambient = vec3(0.03) * albedo * ao;
+    vec3 ambient = vec3(1.0) * albedo * ao;
     vec3 result = ambient + Lo;
     OutColor = vec4(pow(result, vec3(1/2.2)), 1.0);
 }

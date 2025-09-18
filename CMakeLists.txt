@@ -1,7 +1,4 @@
-﻿# CMakeList.txt : CMake project for VulkanRenderer, include source and define
-# project specific logic here.
-#
-cmake_minimum_required (VERSION 3.10)
+﻿cmake_minimum_required (VERSION 3.10)
 
 project ("VulkanRenderer")
 
@@ -11,8 +8,6 @@ find_package(imgui CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(Stb REQUIRED)
 
-
-# Add source to this project's executable.
 add_executable (VulkanRenderer
         src/VulkanEngine.cpp
         src/VulkanEngine.h
@@ -25,7 +20,6 @@ add_executable (VulkanRenderer
         src/DebugWindow.h
         src/AssetManager.cpp
         src/AssetManager.h
-        src/Logger.cpp
         src/Logger.h
         src/Mesh.cpp
         src/Mesh.h
@@ -56,6 +50,8 @@ target_compile_definitions(VulkanRenderer PUBLIC
         VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1
         VULKAN_HPP_NO_SPACESHIP_OPERATOR=1
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+        VULKAN_HPP_NO_SETTERS=1
+        VULKAN_HPP_NO_TO_STRING=1
 )
 
 target_link_libraries(VulkanRenderer PRIVATE glfw)

@@ -96,7 +96,7 @@ Frustum ControlledCameraSystem::getFrustum() const {
     const glm::vec3 cameraRight = glm::normalize(glm::cross(cameraFront, glm::vec3(0.0f, 1.0f, 0.0f)));
     const glm::vec3 cameraUp = glm::normalize(glm::cross(cameraRight, cameraFront));
 
-    const float halfHeight = camera.far * std::tanf(camera.fov * 0.5f);
+    const float halfHeight = camera.far * std::tan(camera.fov * 0.5f);
     const float halfWidth = halfHeight * camera.aspect;
     const glm::vec3 frontMulFar = camera.far * cameraFront;
 

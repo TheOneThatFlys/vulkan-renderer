@@ -461,7 +461,8 @@ void VulkanEngine::pickPhysicalDevice() {
 	if (devices.empty())
 		throw std::runtime_error("Failed to find GPUs with Vulkan support");
 	m_physicalDevice = devices[0];
-	Logger::info("Selected GPU: {}", std::string(m_physicalDevice.getProperties().deviceName));
+	const auto deviceName = m_physicalDevice.getProperties().deviceName;
+	Logger::info("Selected GPU: {}", std::string(deviceName.data()));
 }
 
 bool VulkanEngine::checkDeviceExtensionSupport(const vk::raii::PhysicalDevice& device) {
