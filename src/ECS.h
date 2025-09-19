@@ -15,7 +15,7 @@
 namespace ECS {
 
     using Entity = i32;
-    static constexpr Entity MAX_ENTITIES = 1024;
+    static constexpr Entity MAX_ENTITIES = 4096;
 
     using ComponentID = u8;
     static constexpr ComponentID MAX_COMPONENTS = 64;

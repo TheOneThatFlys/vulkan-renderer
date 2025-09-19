@@ -101,17 +101,19 @@ private:
 template <typename T>
 class DynamicUniformBufferBlock {
 public:
-	DynamicUniformBufferBlock(const VulkanEngine* engine, u32 binding, u32 size = 256) : m_engine(engine), m_binding(binding), m_size(size) {
-		// calculate aligned size
-		u32 minAlignment = static_cast<u32>(engine->getPhysicalDevice().getProperties().limits.minUniformBufferOffsetAlignment);
-		m_alignedItemSize = static_cast<u32>(sizeof(T) + minAlignment - 1) & ~(minAlignment - 1); // calculate the dynamic alignment size - https://github.com/SaschaWillems/Vulkan/tree/master/examples/dynamicuniformbuffer
-		vk::DeviceSize bufferSize = m_alignedItemSize * m_size;
-		std::tie(m_buffer, m_deviceMemory) = engine->createBuffer(bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
-		m_data = static_cast<char*>(m_deviceMemory.mapMemory(0, bufferSize));
+	DynamicUniformBufferBlock(const VulkanEngine* engine, const u32 binding, const u32 size = 256) : m_engine(engine), m_binding(binding), m_size(size), m_alignedItemSize(calculateAlignment()) {
+		createBuffers();
 	}
 
 	~DynamicUniformBufferBlock() {
 		m_deviceMemory.unmapMemory();
+	}
+
+	// resize the buffer to newSize count elements - this will delete any data stored in the buffer
+	void resize(const u32 newSize) {
+		m_size = newSize;
+		m_deviceMemory.unmapMemory();
+		createBuffers();
 	}
 
 	void addToSet(const vk::raii::DescriptorSet& descriptorSet) const {
@@ -133,6 +135,7 @@ public:
 	}
 
 	void setData(u32 index, const T& data) {
+		assert(index < m_size && "Index out of range");
 		std::memcpy(m_data + index * m_alignedItemSize, &data, m_alignedItemSize);
 	}
 
@@ -140,10 +143,25 @@ public:
 		return m_alignedItemSize;
 	}
 
+	u32 getSize() const {
+		return m_size;
+	}
+
 private:
+	u32 calculateAlignment() const {
+		const u32 minAlignment = static_cast<u32>(m_engine->getPhysicalDevice().getProperties().limits.minUniformBufferOffsetAlignment);
+		return static_cast<u32>(sizeof(T) + minAlignment - 1) & ~(minAlignment - 1); // calculate the dynamic alignment size - https://github.com/SaschaWillems/Vulkan/tree/master/examples/dynamicuniformbuffer
+	}
+
+	void createBuffers() {
+		const vk::DeviceSize bufferSize = m_alignedItemSize * m_size;
+		std::tie(m_buffer, m_deviceMemory) = m_engine->createBuffer(bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
+		m_data = static_cast<char*>(m_deviceMemory.mapMemory(0, bufferSize));
+	}
+
 	vk::raii::Buffer m_buffer = nullptr;
 	vk::raii::DeviceMemory m_deviceMemory = nullptr;
-	char* m_data;
+	char* m_data = nullptr;
 
 	const VulkanEngine* m_engine;
 	u32 m_binding;

@@ -20,7 +20,6 @@
 #include "EntitySearcher.h"
 #include "LightSystem.h"
 #include "Renderer3D.h"
-#include "TransformSystem.h"
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
@@ -64,14 +63,11 @@ DebugWindow* VulkanEngine::getDebugWindow() const {
 	return m_debugWindow.get();
 }
 
-FrameTimeInfo VulkanEngine::getFrameTimeInfo() const {
+FrameTimeInfo VulkanEngine::getFrameTimeInfo() {
 	auto [result, data] = m_queryPool.getResults<u64>(0, 2, 2 * sizeof(u64), sizeof(u64), vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait);
 	const float nsPerTick = m_physicalDevice.getProperties().limits.timestampPeriod;
-	return {
-		.frameTime = m_deltaTime * 1000, // glfwGetTime returns seconds, so *1000 to convert to millis
-		.gpuTime = static_cast<float>(data[1] - data[0]) * nsPerTick / 1000000.0f, // gpu time is measured in nanoseconds, so divide by 1,000,000 to get millis
-		.cpuTime = m_cpuTime
-	};
+	m_timeInfo.gpuTime = static_cast<float>(data[1] - data[0]) * nsPerTick / 1000000.0f;
+	return m_timeInfo;
 }
 
 VRAMUsageInfo VulkanEngine::getVramUsage() const {
@@ -205,9 +201,6 @@ void VulkanEngine::initECS() {
 	m_renderer = ECS::registerSystem<Renderer3D>(this, m_swapExtent);
 	ECS::setSystemSignature<Renderer3D>(ECS::createSignature<Transform, Model3D>());
 
-	m_updatables.push_back(ECS::registerSystem<TransformSystem>());
-	ECS::setSystemSignature<TransformSystem>(ECS::createSignature<Transform>());
-
 	ECS::registerSystem<LightSystem>();
 	ECS::setSystemSignature<LightSystem>(ECS::createSignature<Transform, PointLight>());
 }
@@ -223,9 +216,9 @@ void VulkanEngine::createScene() const {
 	auto &sphereTransform = ECS::getComponent<Transform>(sphere);
 	sphereTransform.scale = glm::vec3(0.1f);
 	sphereTransform.position = glm::vec3(0.0f, 10.0f, 0.0f);
+	Transform::updateTransform(sphere);
 
-	const ECS::Entity map = m_assetManager->loadGLB("assets/cs_office.glb");
-	ECS::getComponent<Transform>(map).scale = glm::vec3(0.01f);
+	m_assetManager->loadGLB("assets/cs_office.glb");
 }
 
 void VulkanEngine::createInstance() {
@@ -713,23 +706,27 @@ void VulkanEngine::endSingleCommand(const vk::raii::CommandBuffer &commandBuffer
 }
 
 void VulkanEngine::mainLoop() {
+	using clock = std::chrono::high_resolution_clock;
 	auto prevTime = static_cast<float>(glfwGetTime());
 	while (!glfwWindowShouldClose(m_window)) {
 		InputManager::update();
 		glfwPollEvents();
 
-		const auto updateStartTime = std::chrono::high_resolution_clock::now();
+		const auto updateStartTime = clock::now();
 		for (const auto x : m_updatables) {
 			x->update(m_deltaTime);
 		}
-		const auto updateEndTime = std::chrono::high_resolution_clock::now();
-		m_cpuTime = static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(updateEndTime - updateStartTime).count());
+		m_timeInfo.cpuTime = static_cast<double>(std::chrono::duration_cast<std::chrono::nanoseconds>(clock::now() - updateStartTime).count()) / 1000000.0;
 
+		const auto drawStartTime = clock::now();
 		drawFrame();
+		m_timeInfo.drawWriteTime = static_cast<double>(std::chrono::duration_cast<std::chrono::nanoseconds>(clock::now() - drawStartTime).count()) / 1000000.0;
 
 		const auto nowTime = static_cast<float>(glfwGetTime());
 		m_deltaTime = nowTime - prevTime;
 		prevTime = nowTime;
+
+		m_timeInfo.frameTime = m_deltaTime * 1000.0f;
 	}
 	m_device.waitIdle();
 }

@@ -27,12 +27,16 @@ struct FragFrameData {
 struct RendererDebugInfo {
     u32 totalInstanceCount = 0;
     u32 renderedInstanceCount = 0;
+    u32 materialSwitches = 0;
 };
 
 class Renderer3D final : public ECS::System {
 public:
     explicit Renderer3D(VulkanEngine *engine, vk::Extent2D extent);
     void render(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image, const vk::ImageView &imageView);
+
+    void onEntityAdd(ECS::Entity entity) override;
+    void onEntityRemove(ECS::Entity entity) override;
 
     const Pipeline* getPipeline() const;
 
@@ -77,6 +81,8 @@ private:
     std::unique_ptr<BoundingVolumeRenderer> m_boundingVolumeRenderer;
 
     RendererDebugInfo m_debugInfo;
+
+    std::unordered_map<Material*, std::vector<ECS::Entity>> m_sortedEntities;
 
     ECS::Entity m_highlightedEntity = -1;
 };

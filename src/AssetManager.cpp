@@ -170,6 +170,8 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
         }
     }
 
+    Transform::updateTransform(root);
+
     auto endTime = std::chrono::high_resolution_clock::now();
 
     Logger::info("Loaded '{}' in {} ms [read = {} ms]", path, std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime).count(), std::chrono::duration_cast<std::chrono::milliseconds>(loadTime-startTime).count());

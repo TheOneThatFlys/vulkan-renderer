@@ -19,11 +19,13 @@ constexpr u32 MODEL_SET_NUMBER = 2;
 
 struct FrameTimeInfo {
     // time between each frame in milliseconds
-    double frameTime = 0;
+    double frameTime = 0.0;
     // time for each frame to be drawn in milliseconds
-    double gpuTime = 0;
+    double gpuTime = 0.0;
     // time for update processing (CPU side) in milliseconds
-    double cpuTime = 0;
+    double cpuTime = 0.0;
+    // time for each draw call to be written to
+    double drawWriteTime = 0.0;
 };
 
 struct VRAMUsageInfo {

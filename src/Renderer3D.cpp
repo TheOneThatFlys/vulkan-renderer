@@ -1,5 +1,7 @@
 #include "Renderer3D.h"
 
+#include <chrono>
+
 #include <glm/gtc/matrix_inverse.hpp>
 
 #include "Components.h"
@@ -9,7 +11,7 @@ Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
     : m_engine(engine)
     , m_extent(extent)
     , m_frameUniforms(m_engine, 0)
-    , m_modelUniforms(m_engine, 0)
+    , m_modelUniforms(m_engine, 0, ECS::MAX_ENTITIES)
 	, m_fragFrameUniforms(m_engine, 1)
 	, m_boundingVolumeRenderer(std::make_unique<BoundingVolumeRenderer>(m_engine))
 {
@@ -37,6 +39,19 @@ void Renderer3D::render(const vk::raii::CommandBuffer &commandBuffer, const vk::
 	m_boundingVolumeRenderer->draw(commandBuffer);
 	m_engine->getDebugWindow()->draw(commandBuffer);
 	endRender(commandBuffer, image);
+}
+
+void Renderer3D::onEntityAdd(const ECS::Entity entity) {
+	const auto& modelInfo = ECS::getComponent<Model3D>(entity);
+	if (!m_sortedEntities.contains(modelInfo.material)) {
+		m_sortedEntities.insert({modelInfo.material, std::vector<ECS::Entity>()});
+	}
+	m_sortedEntities.at(modelInfo.material).push_back(entity);
+}
+
+void Renderer3D::onEntityRemove(const ECS::Entity entity) {
+	const auto& modelInfo = ECS::getComponent<Model3D>(entity);
+	std::erase(m_sortedEntities.at(modelInfo.material), entity);
 }
 
 const Pipeline * Renderer3D::getPipeline() const {
@@ -102,7 +117,6 @@ void Renderer3D::createDepthBuffer() {
 
 void Renderer3D::beginRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image, const vk::ImageView& imageView) const {
 	m_engine->transitionImageLayout(image, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
-
 	vk::RenderingAttachmentInfo colourAttachment = {
 		.imageView = imageView,
 		.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
@@ -168,33 +182,40 @@ void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
 	commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline->getPipeline());
 	m_debugInfo = {
 		.totalInstanceCount = 0,
-		.renderedInstanceCount = 0
+		.renderedInstanceCount = 0,
+		.materialSwitches = 0
 	};
 
 	const Frustum cameraFrustum = ECS::getSystem<ControlledCameraSystem>()->getFrustum();
 
 	i32 highlightedIndex = -1;
 	i32 i = 0;
-	for (const ECS::Entity entity : m_entities) {
-		++m_debugInfo.totalInstanceCount;
+	for (const auto& [material, entities] : m_sortedEntities) {
+		bool firstRendered = true;
+		for (const ECS::Entity entity : entities) {
+			++m_debugInfo.totalInstanceCount;
 
-		const Sphere boundingVolume = createBoundingVolume(entity);
-		if (!cameraFrustum.intersects(boundingVolume)) continue;
+			if (!cameraFrustum.intersects(createBoundingVolume(entity))) continue;
 
-		++m_debugInfo.renderedInstanceCount;
+			++m_debugInfo.renderedInstanceCount;
 
-		auto& modelInfo = ECS::getComponent<Model3D>(entity);
-		auto& modelTransform = ECS::getComponent<Transform>(entity);
-		m_modelUniforms.setData(i, {modelTransform.transform, glm::mat4(glm::mat3(glm::inverseTranspose(modelTransform.transform)))});
+			auto& modelInfo = ECS::getComponent<Model3D>(entity);
+			auto& modelTransform = ECS::getComponent<Transform>(entity);
+			m_modelUniforms.setData(i, {modelTransform.transform, glm::mat4(glm::mat3(glm::inverseTranspose(modelTransform.transform)))});
 
-		commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline->getLayout(), MODEL_SET_NUMBER, {*m_modelDescriptor}, {i * m_modelUniforms.getItemSize()});
+			commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline->getLayout(), MODEL_SET_NUMBER, {*m_modelDescriptor}, {i * m_modelUniforms.getItemSize()});
 
-		modelInfo.material->use(commandBuffer, m_pipeline->getLayout());
-		modelInfo.mesh->draw(commandBuffer);
+			if (firstRendered) {
+				material->use(commandBuffer, m_pipeline->getLayout());
+				++m_debugInfo.materialSwitches;
+				firstRendered = false;
+			}
 
-		if (m_highlightedEntity == entity) highlightedIndex = i;
+			modelInfo.mesh->draw(commandBuffer);
 
-		++i;
+			if (m_highlightedEntity == entity) highlightedIndex = i;
+			++i;
+		}
 	}
 	if (highlightedIndex != -1) {
 		commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_xrayPipeline->getLayout(), FRAME_SET_NUMBER, {*m_frameDescriptor}, nullptr);

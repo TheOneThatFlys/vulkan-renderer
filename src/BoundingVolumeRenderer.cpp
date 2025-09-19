@@ -3,7 +3,7 @@
 BoundingVolumeRenderer::BoundingVolumeRenderer(VulkanEngine* engine)
 	: m_engine(engine)
 	, m_frameUniforms(engine, 0)
-	, m_modelUniforms(engine, 0)
+	, m_modelUniforms(engine, 0, ECS::MAX_ENTITIES)
 {
 	m_pipeline = Pipeline::Builder(engine)
 		.addShaderStage("shaders/line.vert.spv")

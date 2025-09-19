@@ -35,8 +35,6 @@ add_executable (VulkanRenderer
         src/Renderer3D.h
         src/Pipeline.cpp
         src/Pipeline.h
-        src/TransformSystem.cpp
-        src/TransformSystem.h
         src/EntitySearcher.cpp
         src/EntitySearcher.h
         src/LightSystem.cpp

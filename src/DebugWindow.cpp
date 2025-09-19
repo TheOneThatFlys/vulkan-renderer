@@ -78,22 +78,25 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
     if (ImGui::BeginTabBar("navbar")) {
         if (ImGui::BeginTabItem("Performance")) {
             // frame times
-            FrameTimeInfo avgTimes = { 1, 1, 1 };
+            FrameTimeInfo avgTimes = { 0.0, 0.0, 0.0, 0.0 };
             std::string frameTimeText, drawTimeText = "Loading...";
             if (m_framesFilled) {
                 for (auto const& frameTime : m_frameTimes) {
                     avgTimes.frameTime += frameTime.frameTime;
                     avgTimes.gpuTime += frameTime.gpuTime;
                     avgTimes.cpuTime += frameTime.cpuTime;
+                    avgTimes.drawWriteTime += frameTime.drawWriteTime;
                 }
                 avgTimes.frameTime /= FRAME_AVERAGE_COUNT;
                 avgTimes.gpuTime /= FRAME_AVERAGE_COUNT;
                 avgTimes.cpuTime /= FRAME_AVERAGE_COUNT;
+                avgTimes.drawWriteTime /= FRAME_AVERAGE_COUNT;
             }
 
             ImGui::Text(std::format("Frame:        {:.3f} ms ({:.0f} fps)", avgTimes.frameTime, 1000 / avgTimes.frameTime).c_str());
             ImGui::Text(std::format("Draw:         {:.3f} ms ({:.0f} fps)", avgTimes.gpuTime, 1000 / avgTimes.gpuTime).c_str());
             ImGui::Text(std::format("CPU (update): {:.3f} ms", avgTimes.cpuTime).c_str());
+            ImGui::Text(std::format("Cmd-write:    {:.3f} ms", avgTimes.drawWriteTime).c_str());
 
             ImGui::Separator();
             // memory usage
@@ -108,6 +111,7 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
             const auto rendererInfo = m_engine->getRenderer()->getDebugInfo();
             ImGui::Text(std::format("Total Instances:    {}", rendererInfo.totalInstanceCount).c_str());
             ImGui::Text(std::format("Rendered Instances: {}", rendererInfo.renderedInstanceCount).c_str());
+            ImGui::Text(std::format("Material Switches:  {}", rendererInfo.materialSwitches).c_str());
 
             ImGui::EndTabItem();
         }
@@ -308,15 +312,21 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
         if (ECS::hasComponent<Transform>(entity)) {
             if (ImGui::TreeNodeEx("Transform", defaultTreeFlags)) {
                 auto&[position, rotation, scale, transform] = ECS::getComponent<Transform>(entity);
-                ImGui::DragFloat3("Position", glm::value_ptr(position), 0.01f);
-                ImGui::DragFloat4("Rotation", glm::value_ptr(rotation), 0.01f, -1.0f, 1.0f);
-                ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.01f, 0.0f, std::numeric_limits<float>::max());
+                bool changed = false;
+                changed |= ImGui::DragFloat3("Position", glm::value_ptr(position), 0.01f);
+                changed |= ImGui::DragFloat4("Rotation", glm::value_ptr(rotation), 0.01f, -1.0f, 1.0f);
+                changed |= ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.01f, 0.0f, std::numeric_limits<float>::max());
+
+                if (changed)
+                    Transform::updateTransform(entity);
 
                 bool normalizeRotation = m_debugFlags.at(entity).test(eNormalizeRotation);
                 ImGui::Checkbox("Normalize rotation", &normalizeRotation);
                 m_debugFlags.at(entity).set(eNormalizeRotation, normalizeRotation);
-                if (normalizeRotation)
+                if (normalizeRotation) {
                     rotation = glm::normalize(rotation);
+                    Transform::updateTransform(entity);
+                }
 
                 ImGui::SameLine();
 

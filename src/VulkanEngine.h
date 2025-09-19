@@ -56,7 +56,7 @@ class VulkanEngine {
 public:
 	void run();
 	DebugWindow* getDebugWindow() const;
-	FrameTimeInfo getFrameTimeInfo() const;
+	FrameTimeInfo getFrameTimeInfo();
 	VRAMUsageInfo getVramUsage() const;
 	const vk::raii::Device& getDevice() const;
 	const vk::raii::PhysicalDevice& getPhysicalDevice() const;
@@ -118,7 +118,8 @@ private:
 	void cleanup() const;
 
 	float m_deltaTime = 1.0f / 120.0f;
-	double m_cpuTime = 0.0f;
+
+	FrameTimeInfo m_timeInfo;
 
 	vk::PresentModeKHR m_presentMode = vk::PresentModeKHR::eFifo;
 	bool m_shouldRecreateSwap = false;

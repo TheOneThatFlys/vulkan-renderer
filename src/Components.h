@@ -12,25 +12,6 @@
 #undef near
 #undef far
 
-struct Transform {
-    glm::vec3 position = glm::vec3(0.0f);
-    glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-    glm::vec3 scale = glm::vec3(1.0f, 1.0f, 1.0f);
-    glm::mat4 transform = glm::mat4(1.0f);
-
-    static glm::vec3 getTransform(glm::mat4 matrix) {
-        return glm::vec3(matrix[3]);
-    }
-
-    static glm::vec3 getScale(glm::mat4 matrix) {
-        return {
-            glm::length(matrix[0]),
-            glm::length(matrix[1]),
-            glm::length(matrix[2])
-        };
-    }
-};
-
 struct HierarchyComponent {
     ECS::Entity parent;
     std::vector<ECS::Entity> children;
@@ -65,6 +46,49 @@ struct HierarchyComponent {
         auto &parentHierarchy = ECS::getComponent<HierarchyComponent>(newParent);
         parentHierarchy.children.push_back(child);
         childHierarchy.parent = newParent;
+    }
+};
+
+struct Transform {
+    glm::vec3 position = glm::vec3(0.0f);
+    glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    glm::vec3 scale = glm::vec3(1.0f, 1.0f, 1.0f);
+    glm::mat4 transform = glm::mat4(1.0f);
+
+    static glm::vec3 getTransform(glm::mat4 matrix) {
+        return glm::vec3(matrix[3]);
+    }
+
+    static glm::vec3 getScale(glm::mat4 matrix) {
+        return {
+            glm::length(matrix[0]),
+            glm::length(matrix[1]),
+            glm::length(matrix[2])
+        };
+    }
+
+    static void updateTransform(const ECS::Entity entity) {
+        const auto hierarchy = ECS::getComponentOptional<HierarchyComponent>(entity);
+        auto& [position, rotation, scale, transform] = ECS::getComponent<Transform>(entity);
+
+        transform = glm::translate(glm::mat4(1.0f), position);
+        transform = transform * glm::mat4_cast(rotation);
+        transform = glm::scale(transform, scale);
+
+        if (hierarchy && hierarchy->parent != -1) {
+            const auto parentTransform = ECS::getComponentOptional<Transform>(hierarchy->parent);
+            if (parentTransform) {
+                transform = parentTransform->transform * transform;
+            }
+        }
+
+        if (hierarchy) {
+            for (const ECS::Entity child : hierarchy->children) {
+                if (ECS::hasComponent<Transform>(child)) {
+                    updateTransform(child);
+                }
+            }
+        }
     }
 };
 
