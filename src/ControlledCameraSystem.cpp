@@ -72,6 +72,10 @@ void ControlledCameraSystem::update(float deltaTime) {
         if (camera.yaw > glm::radians(180.0f)) camera.yaw -= glm::radians(360.0f);
         if (camera.yaw < glm::radians(-180.0f)) camera.yaw += glm::radians(360.0f);
     }
+
+    camera.fov += InputManager::mouseScroll().y * -multiplier;
+    if (camera.fov < 0.0f) camera.fov = 0.0f;
+    if (camera.fov > glm::radians(180.0f)) camera.fov = glm::radians(180.0f);
 }
 
 glm::mat4 ControlledCameraSystem::getViewMatrix() const {

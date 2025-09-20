@@ -258,7 +258,7 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
                     camera.yaw = yawPitchTemp[0];
                     camera.pitch = std::ranges::clamp(yawPitchTemp[1], glm::radians(-89.9f), glm::radians(89.9f));
                 }
-                ImGui::SliderAngle("FOV", &camera.fov, 0.0001f, 180.0f);
+                ImGui::SliderAngle("FOV", &camera.fov, 0.0f, 180.0f);
                 ImGui::SliderFloat("Speed", &camera.speed, 0.0f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
                 ImGui::SliderFloat("Sensitivity", &camera.sensitivity, 0.0001f, 0.01f, "%.4f", ImGuiSliderFlags_NoRoundToFormat);
 

@@ -104,7 +104,7 @@ struct NamedComponent {
 struct ControlledCamera {
     glm::vec3 position = glm::vec3(0.0f);
     float speed = 2.0f;
-    float fov = glm::radians(45.0f);
+    float fov = glm::radians(70.0f);
     float yaw = glm::radians(-90.0f);
     float pitch = glm::radians(0.0f);
 
