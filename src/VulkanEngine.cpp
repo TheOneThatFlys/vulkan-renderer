@@ -177,8 +177,6 @@ void VulkanEngine::initVulkan() {
 
 void VulkanEngine::initECS() {
 	ECS::init();
-	m_debugWindow = std::make_unique<DebugWindow>(this, m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue);
-	m_assetManager = std::make_unique<AssetManager>(this);
 
 	InputManager::setWindow(m_window);
 
@@ -203,6 +201,9 @@ void VulkanEngine::initECS() {
 
 	ECS::registerSystem<LightSystem>();
 	ECS::setSystemSignature<LightSystem>(ECS::createSignature<Transform, PointLight>());
+
+	m_assetManager = std::make_unique<AssetManager>(this);
+	m_debugWindow = std::make_unique<DebugWindow>(this, m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue);
 }
 
 void VulkanEngine::createScene() const {
