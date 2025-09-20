@@ -262,6 +262,10 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
                 ImGui::SliderFloat("Speed", &camera.speed, 0.0f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
                 ImGui::SliderFloat("Sensitivity", &camera.sensitivity, 0.0001f, 0.01f, "%.4f", ImGuiSliderFlags_NoRoundToFormat);
 
+                ImGui::DragFloat("Near", &camera.near, 0.1f, 0.0f, FLT_MAX);
+                ImGui::DragFloat("Far", &camera.far, 0.1f, 0.0f, FLT_MAX);
+
+
                 ImGui::TreePop();
             }
         }

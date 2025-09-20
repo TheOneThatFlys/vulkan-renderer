@@ -2,7 +2,7 @@
 
 ---
 
-- Adjustable camera near/far planes
+- De-systemise a bit
 - Fix debug window probably crashing if entities are removed and all ECS ids are cycled round
 - Shadow mapping
 - Mipmaps

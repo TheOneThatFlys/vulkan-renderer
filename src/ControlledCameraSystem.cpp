@@ -9,6 +9,7 @@
 ControlledCameraSystem::ControlledCameraSystem(GLFWwindow *window) : m_window(window) {
     // capture mouse
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    InputManager::disableMouseAcceleration();
 }
 
 void ControlledCameraSystem::update(float deltaTime) {

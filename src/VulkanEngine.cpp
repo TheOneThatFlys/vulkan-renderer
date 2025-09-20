@@ -161,7 +161,7 @@ void VulkanEngine::initWindow() {
 }
 
 void VulkanEngine::initVulkan() {
-	Logger::info("Initialising Vulkan");
+	Logger::info("Initialising Vulkan{}", ENABLE_VALIDATION_LAYERS ? " (Debug enabled)" : "");
 	createInstance();
 	setupDebugMessenger();
 	createSurface();
