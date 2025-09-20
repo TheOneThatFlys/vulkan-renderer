@@ -3,6 +3,7 @@
 #include <chrono>
 
 #include <glm/gtc/matrix_inverse.hpp>
+#include <glm/gtc/matrix_access.hpp>
 
 #include "Components.h"
 #include "DebugWindow.h"
@@ -230,7 +231,7 @@ void Renderer3D::endRender(const vk::raii::CommandBuffer& commandBuffer, const v
 	m_engine->transitionImageLayout(image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR);
 }
 
-Sphere Renderer3D::createBoundingVolume(const ECS::Entity entity) const {
+OBB Renderer3D::createBoundingVolume(const ECS::Entity entity) const {
 	assert(ECS::hasComponent<Transform>(entity));
 	assert(ECS::hasComponent<Model3D>(entity));
 
@@ -238,11 +239,17 @@ Sphere Renderer3D::createBoundingVolume(const ECS::Entity entity) const {
 	const auto& model = ECS::getComponent<Model3D>(entity);
 
 	const glm::vec3 globalScale = Transform::getScale(transform.transform);
-	const float maxScale = std::max(std::max(globalScale.x, globalScale.y), globalScale.z);
+	const auto localOBB = model.mesh->getLocalOBB();
+	const auto scaledCenter = glm::vec3(
+		glm::dot(glm::vec3(transform.transform[0][0], transform.transform[1][0], transform.transform[2][0]), localOBB.center),
+		glm::dot(glm::vec3(transform.transform[0][1], transform.transform[1][1], transform.transform[2][1]), localOBB.center),
+		glm::dot(glm::vec3(transform.transform[0][2], transform.transform[1][2], transform.transform[2][2]), localOBB.center)
+	);
 
 	return {
-		.center = Transform::getTransform(transform.transform),
-		.radius = model.mesh->getMaxDistance() * maxScale
+		.center = Transform::getTransform(transform.transform) + scaledCenter,
+		.extent = globalScale * localOBB.extent,
+		.rotation = Transform::getRotation(transform.transform)
 	};
 }
 

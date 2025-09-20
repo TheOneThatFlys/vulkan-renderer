@@ -55,16 +55,25 @@ struct Transform {
     glm::vec3 scale = glm::vec3(1.0f, 1.0f, 1.0f);
     glm::mat4 transform = glm::mat4(1.0f);
 
-    static glm::vec3 getTransform(glm::mat4 matrix) {
+    static glm::vec3 getTransform(const glm::mat4& matrix) {
         return glm::vec3(matrix[3]);
     }
 
-    static glm::vec3 getScale(glm::mat4 matrix) {
+    static glm::vec3 getScale(const glm::mat4& matrix) {
         return {
             glm::length(matrix[0]),
             glm::length(matrix[1]),
             glm::length(matrix[2])
         };
+    }
+
+    static glm::quat getRotation(const glm::mat4& matrix) {
+        glm::mat4 matCpy = matrix;
+        const auto scale = getScale(matrix);
+        matCpy[0] /= scale.x;
+        matCpy[1] /= scale.y;
+        matCpy[2] /= scale.z;
+        return glm::quat_cast(matCpy);
     }
 
     static void updateTransform(const ECS::Entity entity) {

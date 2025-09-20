@@ -1,25 +1,34 @@
 #pragma once
 
+#include <concepts>
+
 #include <vulkan/vulkan_raii.hpp>
 
 #include "Common.h"
 #include "Vertex.h"
+#include "Volumes.h"
 
 class VulkanEngine;
-template<typename V = Vertex>
+
+template<typename V>
+concept ValidVertex = requires (V v) {
+    { v.pos } -> std::same_as<glm::vec3&>;
+};
+
+template<ValidVertex V = Vertex>
 class Mesh {
 public:
     Mesh(VulkanEngine* engine, const std::vector<V>& vertices, const std::vector<u32> &indexes);
     void draw(const vk::raii::CommandBuffer &commandBuffer) const;
 
-    float getMaxDistance() const;
+    OBB getLocalOBB() const;
 private:
     void createVertexBuffer(const std::vector<V> &vertices);
 
     void createIndexBuffer(const std::vector<u32>& indexes);
 
     // calculate the distance of the furthest vertex from the origin
-    float resolveMaxDistance(const std::vector<V>& vertices);
+    OBB resolveOBB(const std::vector<V>& vertices);
 
     VulkanEngine* m_engine = nullptr;
 
@@ -32,5 +41,5 @@ private:
     u32 m_indexCount;
     vk::IndexType m_indexType;
 
-    float m_maxDistance = 0.0f; // greatest distance from origin to a vertex`
+    OBB m_localOBB;
 };

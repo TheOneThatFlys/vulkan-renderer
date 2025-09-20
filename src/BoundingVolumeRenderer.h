@@ -15,10 +15,16 @@ public:
     void draw(const vk::raii::CommandBuffer &commandBuffer);
 
     void queueSphere(const Sphere& sphere, const glm::vec3& colour);
+    void queueOBB(const OBB& obb, const glm::vec3& colour);
 
 private:
     struct ColouredSphere {
         Sphere sphere;
+        glm::vec3 colour;
+    };
+
+    struct ColouredOBB {
+        OBB obb;
         glm::vec3 colour;
     };
 
@@ -45,6 +51,8 @@ private:
     DynamicUniformBufferBlock<BoundingVolumeUniform> m_modelUniforms;
 
     std::vector<ColouredSphere> m_sphereQueue;
+    std::vector<ColouredOBB> m_obbQueue;
 
     std::unique_ptr<Mesh<BasicVertex>> m_sphereMesh = nullptr;
+    std::unique_ptr<Mesh<BasicVertex>> m_cubeMesh = nullptr;
 };

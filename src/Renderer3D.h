@@ -44,7 +44,7 @@ public:
     RendererDebugInfo getDebugInfo() const;
     BoundingVolumeRenderer* getBoundingVolumeRenderer() const;
 
-    Sphere createBoundingVolume(ECS::Entity entity) const;
+    OBB createBoundingVolume(ECS::Entity entity) const;
 
     void highlightEntity(ECS::Entity entity);
     ECS::Entity getHighlightedEntity() const;

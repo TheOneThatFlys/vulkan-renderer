@@ -2,30 +2,30 @@
 
 #include "VulkanEngine.h"
 
-template<typename V>
+template<ValidVertex V>
 Mesh<V>::Mesh(VulkanEngine* engine, const std::vector<V>& vertices, const std::vector<u32> &indexes)
     : m_engine(engine)
     , m_indexCount(static_cast<u32>(indexes.size()))
     , m_indexType(vk::IndexType::eUint32)
-    , m_maxDistance(resolveMaxDistance(vertices))
+    , m_localOBB(resolveOBB(vertices))
 {
     createVertexBuffer(vertices);
     createIndexBuffer(indexes);
 }
 
-template<typename V>
+template<ValidVertex V>
 void Mesh<V>::draw(const vk::raii::CommandBuffer& commandBuffer) const {
     commandBuffer.bindVertexBuffers(0, *m_vertexBuffer, {0});
     commandBuffer.bindIndexBuffer(m_indexBuffer, 0, m_indexType);
     commandBuffer.drawIndexed(m_indexCount, 1, 0, 0, 0);
 }
 
-template<typename V>
-float Mesh<V>::getMaxDistance() const {
-    return m_maxDistance;
+template<ValidVertex V>
+OBB Mesh<V>::getLocalOBB() const {
+    return m_localOBB;
 }
 
-template<typename V>
+template<ValidVertex V>
 void Mesh<V>::createVertexBuffer(const std::vector<V>& vertices) {
     const u64 bufferSize = sizeof(V) * vertices.size();
 
@@ -48,19 +48,41 @@ void Mesh<V>::createVertexBuffer(const std::vector<V>& vertices) {
     m_engine->copyBuffer(stagingBuffer, m_vertexBuffer, bufferSize);
 }
 
-template<typename V>
-float Mesh<V>::resolveMaxDistance(const std::vector<V>& vertices) {
-    float maxDistanceSquared = -1.0f;
+template<ValidVertex V>
+OBB Mesh<V>::resolveOBB(const std::vector<V>& vertices) {
+    auto max = glm::vec3(-std::numeric_limits<float>::max());
+    auto min = glm::vec3(std::numeric_limits<float>::max());
     for (const auto& vertex : vertices) {
-        float distanceSquared = vertex.pos.x  * vertex.pos.x + vertex.pos.y * vertex.pos.y + vertex.pos.z * vertex.pos.z;
-        if (distanceSquared > maxDistanceSquared) {
-            maxDistanceSquared = distanceSquared;
+        if (vertex.pos.x > max.x) {
+            max.x = vertex.pos.x;
+        }
+        if (vertex.pos.x < min.x) {
+            min.x = vertex.pos.x;
+        }
+
+        if (vertex.pos.y > max.y) {
+            max.y = vertex.pos.y;
+        }
+        if (vertex.pos.y < min.y) {
+            min.y = vertex.pos.y;
+        }
+
+        if (vertex.pos.z > max.z) {
+            max.z = vertex.pos.z;
+        }
+        if (vertex.pos.z < min.z) {
+            min.z = vertex.pos.z;
         }
     }
-    return std::sqrt(maxDistanceSquared);
+    assert(max.x >= min.x && max.y >= min.y && max.z >= min.z);
+    return {
+        .center = (max + min) / 2.0f,
+        .extent = (max - min) / 2.0f,
+        .rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f)
+    };
 }
 
-template<typename V>
+template<ValidVertex V>
 void Mesh<V>::createIndexBuffer(const std::vector<u32>& indexes) {
     const u64 bufferSize = sizeof(u32) * indexes.size();
 
@@ -85,4 +107,3 @@ void Mesh<V>::createIndexBuffer(const std::vector<u32>& indexes) {
 
 template class Mesh<Vertex>;
 template class Mesh<BasicVertex>;
-
