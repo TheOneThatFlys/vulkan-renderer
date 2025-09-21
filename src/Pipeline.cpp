@@ -8,7 +8,7 @@ Pipeline::Builder::Builder(VulkanEngine* engine) : m_engine(engine) {
 		.topology = vk::PrimitiveTopology::eTriangleList
 	};
 
-	m_dynamicStates = { vk::DynamicState::eViewport, vk::DynamicState::eScissor, vk::DynamicState::eRasterizationSamplesEXT };
+	m_dynamicStates = { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
 
 	// this needs to explicitly be vk::PipelineViewportStateCreateInfo for some reason
 	m_viewportState = vk::PipelineViewportStateCreateInfo {

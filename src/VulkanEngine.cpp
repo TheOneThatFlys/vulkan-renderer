@@ -294,9 +294,6 @@ void VulkanEngine::createLogicalDevice() {
 		},
 		vk::PhysicalDeviceDynamicRenderingFeatures {
 			.dynamicRendering = vk::True
-		},
-		vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT {
-			.extendedDynamicState3RasterizationSamples = vk::True
 		}
 	};
 

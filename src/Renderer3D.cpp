@@ -13,7 +13,7 @@ Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
     , m_frameUniforms(m_engine, 0)
     , m_modelUniforms(m_engine, 0, ECS::MAX_ENTITIES)
 	, m_fragFrameUniforms(m_engine, 1)
-	, m_boundingVolumeRenderer(std::make_unique<BoundingVolumeRenderer>(m_engine))
+	, m_boundingVolumeRenderer(std::make_unique<BoundingVolumeRenderer>(m_engine, this))
 {
 	createPipelines();
 	createDepthBuffer();
@@ -62,7 +62,9 @@ const Pipeline * Renderer3D::getPipeline() const {
 void Renderer3D::rebuild() {
 	createDepthBuffer();
 	createColourBuffer();
+	createPipelines();
 	m_engine->getDebugWindow()->rebuild();
+	m_boundingVolumeRenderer->rebuild();
 }
 
 void Renderer3D::setExtent(vk::Extent2D extent) {
@@ -94,6 +96,7 @@ void Renderer3D::createPipelines() {
 		.addShaderStage("shaders/model.vert.spv")
         .addShaderStage("shaders/model.frag.spv")
         .setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
+		.setSamples(m_samples)
 
         .addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
         .addBinding(0, 1, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment) // frame data - lights & camera
@@ -111,6 +114,7 @@ void Renderer3D::createPipelines() {
 		.addShaderStage("shaders/xray.frag.spv")
 		.setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
 		.setPolygonMode(vk::PolygonMode::eLine)
+		.setSamples(m_samples)
 		.disableDepthTest()
 		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex)
 		.addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex)
@@ -198,7 +202,6 @@ void Renderer3D::setDynamicParameters(const vk::raii::CommandBuffer& commandBuff
 	};
 	commandBuffer.setViewport(0, viewport);
 	commandBuffer.setScissor(0, scissor);
-	commandBuffer.setRasterizationSamplesEXT(m_samples);
 }
 
 void Renderer3D::setFrameUniforms(const vk::raii::CommandBuffer& commandBuffer) {

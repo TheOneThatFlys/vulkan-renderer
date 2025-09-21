@@ -10,9 +10,10 @@
 class VulkanEngine;
 class BoundingVolumeRenderer {
 public:
-    explicit BoundingVolumeRenderer(VulkanEngine* engine);
+    explicit BoundingVolumeRenderer(VulkanEngine* engine, const Renderer3D* parentRenderer);
 
     void draw(const vk::raii::CommandBuffer &commandBuffer);
+    void rebuild();
 
     void queueSphere(const Sphere& sphere, const glm::vec3& colour);
     void queueOBB(const OBB& obb, const glm::vec3& colour);
@@ -38,6 +39,7 @@ private:
         glm::mat4 projection;
     };
 
+    void createPipeline(vk::SampleCountFlagBits samples);
     void createVolumes();
 
     VulkanEngine* m_engine;

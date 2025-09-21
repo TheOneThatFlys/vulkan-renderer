@@ -1,19 +1,13 @@
 #include "BoundingVolumeRenderer.h"
 
-BoundingVolumeRenderer::BoundingVolumeRenderer(VulkanEngine* engine)
+#include "Renderer3D.h"
+
+BoundingVolumeRenderer::BoundingVolumeRenderer(VulkanEngine* engine, const Renderer3D* parentRenderer)
 	: m_engine(engine)
 	, m_frameUniforms(engine, 0)
 	, m_modelUniforms(engine, 0, ECS::MAX_ENTITIES)
 {
-	m_pipeline = Pipeline::Builder(engine)
-		.addShaderStage("shaders/line.vert.spv")
-		.addShaderStage("shaders/line.frag.spv")
-		.setVertexInfo(BasicVertex::getBindingDescription(), BasicVertex::getAttributeDescriptions())
-		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
-		.addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex) // model data
-		.setTopology(vk::PrimitiveTopology::eLineList)
-		.setSamples(vk::SampleCountFlagBits::e4)
-		.create();
+	createPipeline(parentRenderer->getSampleCount());
 
 	m_frameDescriptor = m_pipeline->createDescriptorSet(FRAME_SET_NUMBER);
 	m_modelDescriptor = m_pipeline->createDescriptorSet(MODEL_SET_NUMBER);
@@ -58,12 +52,28 @@ void BoundingVolumeRenderer::draw(const vk::raii::CommandBuffer& commandBuffer) 
 	m_obbQueue.clear();
 }
 
+void BoundingVolumeRenderer::rebuild() {
+	createPipeline(m_engine->getRenderer()->getSampleCount());
+}
+
 void BoundingVolumeRenderer::queueSphere(const Sphere &sphere, const glm::vec3 &colour) {
 	m_sphereQueue.emplace_back(sphere, colour);
 }
 
 void BoundingVolumeRenderer::queueOBB(const OBB &obb, const glm::vec3 &colour) {
 	m_obbQueue.emplace_back(obb, colour);
+}
+
+void BoundingVolumeRenderer::createPipeline(const vk::SampleCountFlagBits samples) {
+	m_pipeline = Pipeline::Builder(m_engine)
+		.addShaderStage("shaders/line.vert.spv")
+		.addShaderStage("shaders/line.frag.spv")
+		.setVertexInfo(BasicVertex::getBindingDescription(), BasicVertex::getAttributeDescriptions())
+		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
+		.addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex) // model data
+		.setTopology(vk::PrimitiveTopology::eLineList)
+		.setSamples(samples)
+		.create();
 }
 
 void BoundingVolumeRenderer::createVolumes() {

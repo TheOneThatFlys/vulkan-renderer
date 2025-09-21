@@ -29,7 +29,6 @@ constexpr std::array deviceExtensions = {
 	vk::KHRSwapchainExtensionName,
 	vk::EXTMemoryBudgetExtensionName,
 	vk::KHRDynamicRenderingExtensionName,
-	vk::EXTExtendedDynamicState3ExtensionName
 };
 
 #ifdef NDEBUG
