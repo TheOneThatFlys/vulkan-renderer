@@ -12,6 +12,7 @@ BoundingVolumeRenderer::BoundingVolumeRenderer(VulkanEngine* engine)
 		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
 		.addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex) // model data
 		.setTopology(vk::PrimitiveTopology::eLineList)
+		.setSamples(vk::SampleCountFlagBits::e4)
 		.create();
 
 	m_frameDescriptor = m_pipeline->createDescriptorSet(FRAME_SET_NUMBER);

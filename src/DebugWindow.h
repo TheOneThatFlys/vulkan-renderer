@@ -17,22 +17,17 @@ enum DebugFlags {
     eDisplayBoundingVolume
 };
 
-class SceneGraphDisplaySystem : public ECS::System {
-public:
-    void draw() const;
-private:
-    static void drawNodeRecursive(ECS::Entity entity);
-    static void drawMatrix(glm::mat4& matrix);
-};
-
 class VulkanEngine;
 class DebugWindow {
 public:
-    DebugWindow(VulkanEngine* engine, GLFWwindow *window, const vk::raii::Instance& instance, const vk::raii::PhysicalDevice& physicalDevice, const vk::raii::Device& device, const vk::raii::Queue& queue);
+    DebugWindow(VulkanEngine* engine, GLFWwindow *window);
     ~DebugWindow();
     void draw(const vk::raii::CommandBuffer& commandBuffer);
+    void rebuild() const;
 
 private:
+    void initVulkanImpl() const;
+
     using UpdateCallback = void(*)(DebugWindow*);
     void setTimedUpdate(UpdateCallback func, int nFrames);
 
@@ -45,7 +40,6 @@ private:
     static void drawMatrix(const glm::mat4& mat);
 
     VulkanEngine* m_engine;
-    SceneGraphDisplaySystem* m_graphDisplay;
 
     std::unordered_map<UpdateCallback, int> m_updateCallbacks;
     std::unordered_map<UpdateCallback, int> m_callbackLives;

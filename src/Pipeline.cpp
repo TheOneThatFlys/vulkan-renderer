@@ -8,7 +8,7 @@ Pipeline::Builder::Builder(VulkanEngine* engine) : m_engine(engine) {
 		.topology = vk::PrimitiveTopology::eTriangleList
 	};
 
-	m_dynamicStates = { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
+	m_dynamicStates = { vk::DynamicState::eViewport, vk::DynamicState::eScissor, vk::DynamicState::eRasterizationSamplesEXT };
 
 	// this needs to explicitly be vk::PipelineViewportStateCreateInfo for some reason
 	m_viewportState = vk::PipelineViewportStateCreateInfo {
@@ -109,6 +109,11 @@ Pipeline::Builder & Pipeline::Builder::setTopology(const vk::PrimitiveTopology t
 Pipeline::Builder & Pipeline::Builder::disableDepthTest() {
 	m_depthStencil.depthTestEnable = vk::False;
 	m_depthStencil.depthWriteEnable = vk::False;
+	return *this;
+}
+
+Pipeline::Builder & Pipeline::Builder::setSamples(vk::SampleCountFlagBits samples) {
+	m_multisampling.rasterizationSamples = samples;
 	return *this;
 }
 

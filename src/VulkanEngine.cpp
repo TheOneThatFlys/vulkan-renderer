@@ -93,6 +93,14 @@ VRAMUsageInfo VulkanEngine::getVramUsage() const {
 	return info;
 }
 
+const vk::raii::Instance & VulkanEngine::getInstance() const {
+	return m_instance;
+}
+
+const vk::raii::Queue & VulkanEngine::getGraphicsQueue() const {
+	return m_graphicsQueue;
+}
+
 const vk::raii::Device & VulkanEngine::getDevice() const {
 	return m_device;
 }
@@ -128,6 +136,10 @@ vk::Format VulkanEngine::getDepthFormat() {
 
 void VulkanEngine::queueSwapRecreation() {
 	m_shouldRecreateSwap = true;
+}
+
+void VulkanEngine::queueRendererRebuild() {
+	m_shouldRebuildRenderer = true;
 }
 
 void VulkanEngine::setWindowSize(const u32 width, const u32 height) const {
@@ -203,7 +215,7 @@ void VulkanEngine::initECS() {
 	ECS::setSystemSignature<LightSystem>(ECS::createSignature<Transform, PointLight>());
 
 	m_assetManager = std::make_unique<AssetManager>(this);
-	m_debugWindow = std::make_unique<DebugWindow>(this, m_window, m_instance, m_physicalDevice, m_device, m_graphicsQueue);
+	m_debugWindow = std::make_unique<DebugWindow>(this, m_window);
 }
 
 void VulkanEngine::createScene() const {
@@ -270,7 +282,7 @@ void VulkanEngine::createLogicalDevice() {
 
 	vk::PhysicalDeviceFeatures deviceFeatures = {
 		.fillModeNonSolid = vk::True,
-		.samplerAnisotropy = vk::True
+		.samplerAnisotropy = vk::True,
 	};
 	vk::StructureChain createInfo = {
 		vk::DeviceCreateInfo {
@@ -282,6 +294,9 @@ void VulkanEngine::createLogicalDevice() {
 		},
 		vk::PhysicalDeviceDynamicRenderingFeatures {
 			.dynamicRendering = vk::True
+		},
+		vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT {
+			.extendedDynamicState3RasterizationSamples = vk::True
 		}
 	};
 
@@ -633,7 +648,7 @@ std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> VulkanEngine::createBuffer(v
 	return result;
 }
 
-std::pair<vk::raii::Image, vk::raii::DeviceMemory> VulkanEngine::createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties) const {
+std::pair<vk::raii::Image, vk::raii::DeviceMemory> VulkanEngine::createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::SampleCountFlagBits samples) const {
 	std::pair<vk::raii::Image, vk::raii::DeviceMemory> result = {nullptr, nullptr};
 
 	vk::ImageCreateInfo imageInfo = {
@@ -646,7 +661,7 @@ std::pair<vk::raii::Image, vk::raii::DeviceMemory> VulkanEngine::createImage(u32
 		},
 		.mipLevels = 1,
 		.arrayLayers = 1,
-		.samples = vk::SampleCountFlagBits::e1,
+		.samples = samples,
 		.tiling = tiling,
 		.usage = usage,
 		.sharingMode = vk::SharingMode::eExclusive,
@@ -770,6 +785,11 @@ void VulkanEngine::drawFrame() {
 	}
 	catch (vk::OutOfDateKHRError&) {
 		recreateSwapChain();
+	}
+	if (m_shouldRebuildRenderer) {
+		m_device.waitIdle();
+		m_shouldRebuildRenderer = false;
+		m_renderer->rebuild();
 	}
 }
 

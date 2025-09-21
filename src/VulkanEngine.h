@@ -29,6 +29,7 @@ constexpr std::array deviceExtensions = {
 	vk::KHRSwapchainExtensionName,
 	vk::EXTMemoryBudgetExtensionName,
 	vk::KHRDynamicRenderingExtensionName,
+	vk::EXTExtendedDynamicState3ExtensionName
 };
 
 #ifdef NDEBUG
@@ -58,6 +59,8 @@ public:
 	DebugWindow* getDebugWindow() const;
 	FrameTimeInfo getFrameTimeInfo();
 	VRAMUsageInfo getVramUsage() const;
+	const vk::raii::Instance& getInstance() const;
+	const vk::raii::Queue& getGraphicsQueue() const;
 	const vk::raii::Device& getDevice() const;
 	const vk::raii::PhysicalDevice& getPhysicalDevice() const;
 	const vk::raii::DescriptorPool& getDescriptorPool() const;
@@ -69,12 +72,13 @@ public:
 	static vk::Format getDepthFormat();
 
 	void queueSwapRecreation();
+	void queueRendererRebuild();
 	void setWindowSize(u32 width, u32 height) const;
 	std::pair<u32, u32> getWindowSize() const;
 
 	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
 	void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const;
-	std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties) const;
+	std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1) const;
 	vk::raii::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags) const;
 	void copyBufferToImage(const vk::raii::Buffer& buffer, const vk::raii::Image& image, u32 width, u32 height) const;
 	void transitionImageLayout(const vk::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
@@ -123,6 +127,7 @@ private:
 
 	vk::PresentModeKHR m_presentMode = vk::PresentModeKHR::eFifo;
 	bool m_shouldRecreateSwap = false;
+	bool m_shouldRebuildRenderer = false;
 
 	Renderer3D* m_renderer = nullptr;
 	std::vector<IUpdatable*> m_updatables;

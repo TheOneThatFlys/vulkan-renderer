@@ -11,39 +11,14 @@
 #include "Renderer3D.h"
 #include "VulkanEngine.h"
 
-DebugWindow::DebugWindow(VulkanEngine* engine, GLFWwindow *window, const vk::raii::Instance& instance, const vk::raii::PhysicalDevice& physicalDevice, const vk::raii::Device& device, const vk::raii::Queue& queue) {
-    m_engine = engine;
-    m_graphDisplay = ECS::registerSystem<SceneGraphDisplaySystem>();
-    ECS::setSystemSignature<SceneGraphDisplaySystem>(ECS::createSignature<>()); // views all entities in the ECS
-
+DebugWindow::DebugWindow(VulkanEngine* engine, GLFWwindow *window) : m_engine(engine) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
-
-    auto colourFormat = static_cast<VkFormat>(m_engine->getSwapColourFormat());
-    ImGui_ImplVulkan_InitInfo initInfo = {
-        .ApiVersion = vk::ApiVersion14,
-        .Instance = *instance,
-        .PhysicalDevice = *physicalDevice,
-        .Device = *device,
-        .Queue = *queue,
-        .MinImageCount = 2,
-        .ImageCount = 2,
-        .DescriptorPoolSize = 64,
-        .UseDynamicRendering = true,
-        .PipelineRenderingCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
-            .colorAttachmentCount = 1,
-            .pColorAttachmentFormats = &colourFormat,
-            .depthAttachmentFormat = static_cast<VkFormat>(m_engine->getDepthFormat()),
-        }
-    };
-
-    ImGui_ImplVulkan_Init(&initInfo);
-
+    initVulkanImpl();
     createUpdateCallbacks();
 }
 
@@ -60,6 +35,7 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
         }
         return;
     }
+    std::vector<UpdateCallback> deferedActions;
 
     // begin frame
     ImGui_ImplVulkan_NewFrame();
@@ -147,6 +123,31 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
                 ImGui::EndCombo();
             }
 
+            static constexpr std::array sampleOptions = { vk::SampleCountFlagBits::e1, vk::SampleCountFlagBits::e2, vk::SampleCountFlagBits::e4, vk::SampleCountFlagBits::e8 };
+            static constexpr std::array sampleNames = { "Off", "MSAAx2", "MSAAx4", "MSAAx8" };
+
+            const auto currentSamples = m_engine->getRenderer()->getSampleCount();
+            int i = 0;
+            switch (currentSamples) {
+                case vk::SampleCountFlagBits::e1:
+                    i = 0;
+                    break;
+                case vk::SampleCountFlagBits::e2:
+                    i = 1;
+                    break;
+                case vk::SampleCountFlagBits::e4:
+                    i = 2;
+                    break;
+                case vk::SampleCountFlagBits::e8:
+                    i = 3;
+                    break;
+                default:
+                    i = -1;
+            }
+            if (ImGui::SliderInt("Antialiasing", &i, 0, static_cast<int>(sampleOptions.size()) - 1, sampleNames[i])) {
+                m_engine->getRenderer()->setSampleCount(sampleOptions.at(i));
+            }
+
             bool isVsync = m_engine->getPresentMode() == vk::PresentModeKHR::eFifo;
             if (ImGui::Checkbox("VSync", &isVsync)) {
                 m_engine->setPresentMode(isVsync ? vk::PresentModeKHR::eFifo : vk::PresentModeKHR::eImmediate);
@@ -213,6 +214,34 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
             func(this);
         }
     }
+}
+
+void DebugWindow::rebuild() const {
+    ImGui_ImplVulkan_Shutdown();
+    initVulkanImpl();
+}
+
+void DebugWindow::initVulkanImpl() const{
+    auto colourFormat = static_cast<VkFormat>(m_engine->getSwapColourFormat());
+    ImGui_ImplVulkan_InitInfo initInfo = {
+        .ApiVersion = vk::ApiVersion14,
+        .Instance = *m_engine->getInstance(),
+        .PhysicalDevice = *m_engine->getPhysicalDevice(),
+        .Device = *m_engine->getDevice(),
+        .Queue = *m_engine->getGraphicsQueue(),
+        .MinImageCount = 2,
+        .ImageCount = 2,
+        .MSAASamples = static_cast<VkSampleCountFlagBits>(m_engine->getRenderer()->getSampleCount()),
+        .DescriptorPoolSize = 64,
+        .UseDynamicRendering = true,
+        .PipelineRenderingCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
+            .colorAttachmentCount = 1,
+            .pColorAttachmentFormats = &colourFormat,
+            .depthAttachmentFormat = static_cast<VkFormat>(m_engine->getDepthFormat()),
+        }
+    };
+    ImGui_ImplVulkan_Init(&initInfo);
 }
 
 void DebugWindow::setTimedUpdate(UpdateCallback func, int nFrames) {

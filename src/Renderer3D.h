@@ -40,9 +40,14 @@ public:
 
     const Pipeline* getPipeline() const;
 
+    void rebuild();
+
     void setExtent(vk::Extent2D extent);
     RendererDebugInfo getDebugInfo() const;
     BoundingVolumeRenderer* getBoundingVolumeRenderer() const;
+
+    void setSampleCount(vk::SampleCountFlagBits samples);
+    vk::SampleCountFlagBits getSampleCount() const;
 
     OBB createBoundingVolume(ECS::Entity entity) const;
 
@@ -52,6 +57,7 @@ public:
 private:
     void createPipelines();
     void createDepthBuffer();
+    void createColourBuffer();
 
     void beginRender(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image, const vk::ImageView &imageView) const;
     void setDynamicParameters(const vk::raii::CommandBuffer &commandBuffer) const;
@@ -68,6 +74,12 @@ private:
     vk::raii::Image m_depthBuffer = nullptr;
     vk::raii::DeviceMemory m_depthBufferMemory = nullptr;
     vk::raii::ImageView m_depthBufferImage = nullptr;
+
+    vk::raii::Image m_colourImage = nullptr;
+    vk::raii::DeviceMemory m_colourImageMemory = nullptr;
+    vk::raii::ImageView m_colourImageView = nullptr;
+
+    vk::SampleCountFlagBits m_samples = vk::SampleCountFlagBits::e4;
 
     ECS::Entity m_camera;
 

@@ -17,6 +17,7 @@ public:
         Builder& setPolygonMode(vk::PolygonMode polygonMode);
         Builder& setTopology(vk::PrimitiveTopology topology);
         Builder& disableDepthTest();
+        Builder& setSamples(vk::SampleCountFlagBits samples);
         std::unique_ptr<Pipeline> create();
     private:
 

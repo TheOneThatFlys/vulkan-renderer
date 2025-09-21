@@ -3,7 +3,6 @@
 #include <chrono>
 
 #include <glm/gtc/matrix_inverse.hpp>
-#include <glm/gtc/matrix_access.hpp>
 
 #include "Components.h"
 #include "DebugWindow.h"
@@ -18,6 +17,7 @@ Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
 {
 	createPipelines();
 	createDepthBuffer();
+	createColourBuffer();
 
 	m_frameDescriptor = m_pipeline->createDescriptorSet(FRAME_SET_NUMBER);
 	m_modelDescriptor = m_pipeline->createDescriptorSet(MODEL_SET_NUMBER);
@@ -59,10 +59,17 @@ const Pipeline * Renderer3D::getPipeline() const {
 	return m_pipeline.get();
 }
 
+void Renderer3D::rebuild() {
+	createDepthBuffer();
+	createColourBuffer();
+	m_engine->getDebugWindow()->rebuild();
+}
+
 void Renderer3D::setExtent(vk::Extent2D extent) {
 	m_extent = extent;
 	ECS::getComponent<ControlledCamera>(m_camera).aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
 	createDepthBuffer();
+	createColourBuffer();
 }
 
 RendererDebugInfo Renderer3D::getDebugInfo() const {
@@ -71,6 +78,15 @@ RendererDebugInfo Renderer3D::getDebugInfo() const {
 
 BoundingVolumeRenderer * Renderer3D::getBoundingVolumeRenderer() const {
 	return m_boundingVolumeRenderer.get();
+}
+
+void Renderer3D::setSampleCount(vk::SampleCountFlagBits samples) {
+	m_samples = samples;
+	m_engine->queueRendererRebuild();
+}
+
+vk::SampleCountFlagBits Renderer3D::getSampleCount() const {
+	return m_samples;
 }
 
 void Renderer3D::createPipelines() {
@@ -110,10 +126,24 @@ void Renderer3D::createDepthBuffer() {
 		m_engine->getDepthFormat(),
 		vk::ImageTiling::eOptimal,
 		vk::ImageUsageFlagBits::eDepthStencilAttachment,
-		vk::MemoryPropertyFlagBits::eDeviceLocal
+		vk::MemoryPropertyFlagBits::eDeviceLocal,
+		m_samples
 	);
 
 	m_depthBufferImage = m_engine->createImageView(m_depthBuffer, m_engine->getDepthFormat(), vk::ImageAspectFlagBits::eDepth);
+}
+
+void Renderer3D::createColourBuffer() {
+	std::tie(m_colourImage, m_colourImageMemory) = m_engine->createImage(
+		m_extent.width,
+		m_extent.height,
+		m_engine->getSwapColourFormat(),
+		vk::ImageTiling::eOptimal,
+		vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment,
+		vk::MemoryPropertyFlagBits::eDeviceLocal,
+		m_samples
+	);
+	m_colourImageView = m_engine->createImageView(m_colourImage, m_engine->getSwapColourFormat(), vk::ImageAspectFlagBits::eColor);
 }
 
 void Renderer3D::beginRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image, const vk::ImageView& imageView) const {
@@ -123,8 +153,15 @@ void Renderer3D::beginRender(const vk::raii::CommandBuffer& commandBuffer, const
 		.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
 		.loadOp = vk::AttachmentLoadOp::eClear,
 		.storeOp = vk::AttachmentStoreOp::eStore,
-		.clearValue = vk::ClearColorValue(0.0f, 0.0f, 0.0f, 0.0f)
+		.clearValue = vk::ClearColorValue(0.0f, 0.0f, 0.0f, 0.0f),
 	};
+	if (m_samples != vk::SampleCountFlagBits::e1) {
+		colourAttachment.imageView = m_colourImageView;
+		colourAttachment.resolveMode = vk::ResolveModeFlagBits::eAverage;
+		colourAttachment.resolveImageView = imageView;
+		colourAttachment.resolveImageLayout = vk::ImageLayout::eColorAttachmentOptimal;
+	}
+
 	vk::RenderingAttachmentInfo depthAttachment = {
 		.imageView = m_depthBufferImage,
 		.imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
@@ -161,6 +198,7 @@ void Renderer3D::setDynamicParameters(const vk::raii::CommandBuffer& commandBuff
 	};
 	commandBuffer.setViewport(0, viewport);
 	commandBuffer.setScissor(0, scissor);
+	commandBuffer.setRasterizationSamplesEXT(m_samples);
 }
 
 void Renderer3D::setFrameUniforms(const vk::raii::CommandBuffer& commandBuffer) {

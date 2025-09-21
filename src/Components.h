@@ -122,7 +122,7 @@ struct ControlledCamera {
 
     bool capturingMouse = true;
 
-    float near = 0.1f;
+    float near = 0.01f;
     float far = 100.0f;
 };
 
