@@ -35,13 +35,13 @@ add_executable (VulkanRenderer
         src/Renderer3D.h
         src/Pipeline.cpp
         src/Pipeline.h
-        src/EntitySearcher.cpp
-        src/EntitySearcher.h
         src/LightSystem.cpp
         src/LightSystem.h
         src/Volumes.h
         src/BoundingVolumeRenderer.cpp
         src/BoundingVolumeRenderer.h
+        src/EntitySystem.cpp
+        src/EntitySystem.h
 )
 
 target_compile_definitions(VulkanRenderer PUBLIC

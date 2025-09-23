@@ -113,7 +113,7 @@ private:
 	void endSingleCommand(const vk::raii::CommandBuffer& commandBuffer) const;
 
 	void mainLoop();
-	void recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, u32 imageIndex) const;
+	void recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, u32 imageIndex);
 	void drawFrame();
 
 	void recreateSwapChain();

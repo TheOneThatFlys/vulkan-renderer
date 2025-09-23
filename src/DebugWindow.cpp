@@ -7,7 +7,7 @@
 #include <ranges>
 
 #include "Components.h"
-#include "EntitySearcher.h"
+#include "EntitySystem.h"
 #include "Renderer3D.h"
 #include "VulkanEngine.h"
 
@@ -157,7 +157,7 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
         }
 
         if (ImGui::BeginTabItem("ECS")) {
-            const auto& entities = ECS::getSystem<AllEntities>()->get();
+            const auto& entities = ECS::getSystem<EntitySystem>()->get();
 
             ImGui::SeparatorText("Bounding volumes");
 
@@ -388,7 +388,7 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
 }
 
 void DebugWindow::setFlagForAllEntities(const DebugFlags flag, const bool value) {
-    for (const auto entity : ECS::getSystem<AllEntities>()->get()) {
+    for (const auto entity : ECS::getSystem<EntitySystem>()->get()) {
         m_debugFlags.at(entity).set(flag, value);
     }
 }

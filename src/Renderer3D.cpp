@@ -82,7 +82,7 @@ BoundingVolumeRenderer * Renderer3D::getBoundingVolumeRenderer() const {
 	return m_boundingVolumeRenderer.get();
 }
 
-void Renderer3D::setSampleCount(vk::SampleCountFlagBits samples) {
+void Renderer3D::setSampleCount(const vk::SampleCountFlagBits samples) {
 	m_samples = samples;
 	m_engine->queueRendererRebuild();
 }

@@ -17,7 +17,7 @@
 #include "DebugWindow.h"
 #include "AssetManager.h"
 #include "Components.h"
-#include "EntitySearcher.h"
+#include "EntitySystem.h"
 #include "LightSystem.h"
 #include "Renderer3D.h"
 
@@ -199,11 +199,8 @@ void VulkanEngine::initECS() {
 	ECS::registerComponent<ControlledCamera>();
 	ECS::registerComponent<PointLight>();
 
-	ECS::registerSystem<AllEntities>();
-	ECS::setSystemSignature<AllEntities>(ECS::createSignature<>());
-
-	ECS::registerSystem<EntitySearcher>();
-	ECS::setSystemSignature<EntitySearcher>(ECS::createSignature<NamedComponent>());
+	ECS::registerSystem<EntitySystem>();
+	ECS::setSystemSignature<EntitySystem>(ECS::createSignature<>());
 
 	m_updatables.push_back(ECS::registerSystem<ControlledCameraSystem>(m_window));
 	ECS::setSystemSignature<ControlledCameraSystem>(ECS::createSignature<ControlledCamera>());
@@ -731,9 +728,7 @@ void VulkanEngine::mainLoop() {
 		}
 		m_timeInfo.cpuTime = static_cast<double>(std::chrono::duration_cast<std::chrono::nanoseconds>(clock::now() - updateStartTime).count()) / 1000000.0;
 
-		const auto drawStartTime = clock::now();
 		drawFrame();
-		m_timeInfo.drawWriteTime = static_cast<double>(std::chrono::duration_cast<std::chrono::nanoseconds>(clock::now() - drawStartTime).count()) / 1000000.0;
 
 		const auto nowTime = static_cast<float>(glfwGetTime());
 		m_deltaTime = nowTime - prevTime;
@@ -790,14 +785,18 @@ void VulkanEngine::drawFrame() {
 	}
 }
 
-void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, const u32 imageIndex) const {
+void VulkanEngine::recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, const u32 imageIndex) {
+	using clock = std::chrono::high_resolution_clock;
+	const auto drawStartTime = clock::now();
+
 	commandBuffer.begin({});
 	commandBuffer.resetQueryPool(m_queryPool, 0, 2);
 	commandBuffer.writeTimestamp(vk::PipelineStageFlagBits::eTopOfPipe, m_queryPool, 0);
 	m_renderer->render(commandBuffer, m_swapChain.getImages().at(imageIndex), m_swapImageViews[imageIndex]);
 	commandBuffer.writeTimestamp(vk::PipelineStageFlagBits::eBottomOfPipe, m_queryPool, 1);
-
 	commandBuffer.end();
+
+	m_timeInfo.drawWriteTime = static_cast<double>(std::chrono::duration_cast<std::chrono::nanoseconds>(clock::now() - drawStartTime).count()) / 1000000.0;
 }
 
 void VulkanEngine::recreateSwapChain() {
