@@ -18,6 +18,8 @@ public:
         Builder& setTopology(vk::PrimitiveTopology topology);
         Builder& disableDepthTest();
         Builder& setSamples(vk::SampleCountFlagBits samples);
+        Builder& addAttachment(vk::Format format);
+        Builder& addAttachment(vk::Format format, const vk::PipelineColorBlendAttachmentState& attachment);
         std::unique_ptr<Pipeline> create();
     private:
 
@@ -33,10 +35,10 @@ public:
         vk::PipelineRasterizationStateCreateInfo m_rasterizer;
         vk::PipelineMultisampleStateCreateInfo m_multisampling;
         vk::PipelineDepthStencilStateCreateInfo m_depthStencil;
-        vk::PipelineColorBlendAttachmentState m_colorBlendAttachment;
-        vk::PipelineColorBlendStateCreateInfo m_colorBlending;
 
         std::array<std::vector<vk::DescriptorSetLayoutBinding>, 4> m_descriptorBindings;
+        std::vector<vk::PipelineColorBlendAttachmentState> m_attachments;
+        std::vector<vk::Format> m_colourFormats;
     };
 
     Pipeline(VulkanEngine* engine, vk::raii::Pipeline pipeline, vk::raii::PipelineLayout layout, std::vector<vk::raii::DescriptorSetLayout> descriptorSetLayouts);

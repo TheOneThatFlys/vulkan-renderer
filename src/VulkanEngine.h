@@ -67,8 +67,8 @@ public:
 	void setPresentMode(vk::PresentModeKHR mode);
 	vk::PresentModeKHR getPresentMode() const;
 
-	static vk::Format getSwapColourFormat();
-	static vk::Format getDepthFormat();
+	vk::Format getSwapColourFormat();
+	vk::Format getDepthFormat();
 
 	void queueSwapRecreation();
 	void queueRendererRebuild();

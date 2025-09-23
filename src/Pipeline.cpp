@@ -38,17 +38,6 @@ Pipeline::Builder::Builder(VulkanEngine* engine) : m_engine(engine) {
 		.depthBoundsTestEnable = vk::False,
 		.stencilTestEnable = vk::False
 	};
-
-	m_colorBlendAttachment = {
-		.blendEnable = vk::False,
-		.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-	};
-
-	m_colorBlending = {
-		.logicOpEnable = vk::False,
-		.attachmentCount = 1,
-		.pAttachments = &m_colorBlendAttachment
-	};
 }
 
 Pipeline::Builder& Pipeline::Builder::setVertexInfo(const vk::VertexInputBindingDescription& bindings, const std::vector<vk::VertexInputAttributeDescription>& attributes) {
@@ -117,9 +106,26 @@ Pipeline::Builder & Pipeline::Builder::setSamples(vk::SampleCountFlagBits sample
 	return *this;
 }
 
+Pipeline::Builder & Pipeline::Builder::addAttachment(const vk::Format format, const vk::PipelineColorBlendAttachmentState& attachment) {
+	m_attachments.push_back(attachment);
+	m_colourFormats.push_back(format);
+	return *this;
+}
+
+Pipeline::Builder & Pipeline::Builder::addAttachment(const vk::Format format) {
+	m_attachments.push_back({
+		.blendEnable = vk::False,
+		.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA
+	});
+	m_colourFormats.push_back(format);
+	return *this;
+}
+
 std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 	assert(m_shaders.contains(vk::ShaderStageFlagBits::eVertex));
 	assert(m_shaders.contains(vk::ShaderStageFlagBits::eFragment));
+	assert(!m_attachments.empty());
+	assert(m_attachments.size() == m_colourFormats.size());
 	assert(!m_attributes.empty());
 
 	std::vector<vk::raii::DescriptorSetLayout> descriptorLayouts;
@@ -154,7 +160,12 @@ std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 		.pDynamicStates = m_dynamicStates.data()
 	};
 
-	const std::array colourFormats = { m_engine->getSwapColourFormat() };
+	vk::PipelineColorBlendStateCreateInfo colorBlending = {
+		.logicOpEnable = vk::False,
+		.attachmentCount = static_cast<u32>(m_attachments.size()),
+		.pAttachments = m_attachments.data()
+	};
+
 	vk::StructureChain chain = {
 		vk::GraphicsPipelineCreateInfo {
 			.stageCount = static_cast<u32>(shaderStages.size()),
@@ -165,14 +176,14 @@ std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 			.pRasterizationState = &m_rasterizer,
 			.pMultisampleState = &m_multisampling,
 			.pDepthStencilState = &m_depthStencil,
-			.pColorBlendState = &m_colorBlending,
+			.pColorBlendState = &colorBlending,
 			.pDynamicState = &dynamicState,
 			.layout = pipelineLayout,
 			.subpass = 0
 		},
 		vk::PipelineRenderingCreateInfo {
-			.colorAttachmentCount = static_cast<u32>(colourFormats.size()),
-			.pColorAttachmentFormats = colourFormats.data(),
+			.colorAttachmentCount = static_cast<u32>(m_colourFormats.size()),
+			.pColorAttachmentFormats = m_colourFormats.data(),
 			.depthAttachmentFormat = m_engine->getDepthFormat(),
 		}
 	};

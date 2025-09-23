@@ -31,6 +31,7 @@ add_executable (VulkanRenderer
         src/UniformBufferBlock.h
         src/ECS.h
         src/Components.h
+        src/Components.cpp
         src/Renderer3D.cpp
         src/Renderer3D.h
         src/Pipeline.cpp

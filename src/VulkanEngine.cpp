@@ -198,6 +198,7 @@ void VulkanEngine::initECS() {
 	ECS::registerComponent<NamedComponent>();
 	ECS::registerComponent<ControlledCamera>();
 	ECS::registerComponent<PointLight>();
+	ECS::registerComponent<BoundingVolume>();
 
 	ECS::registerSystem<EntitySystem>();
 	ECS::setSystemSignature<EntitySystem>(ECS::createSignature<>());

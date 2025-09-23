@@ -49,8 +49,6 @@ public:
     void setSampleCount(vk::SampleCountFlagBits samples);
     vk::SampleCountFlagBits getSampleCount() const;
 
-    OBB createBoundingVolume(ECS::Entity entity) const;
-
     void highlightEntity(ECS::Entity entity);
     ECS::Entity getHighlightedEntity() const;
 
@@ -78,6 +76,10 @@ private:
     vk::raii::Image m_colourImage = nullptr;
     vk::raii::DeviceMemory m_colourImageMemory = nullptr;
     vk::raii::ImageView m_colourImageView = nullptr;
+
+    vk::raii::Image m_idImage = nullptr;
+    vk::raii::DeviceMemory m_idImageMemory = nullptr;
+    vk::raii::ImageView m_idImageView = nullptr;
 
     vk::SampleCountFlagBits m_samples = vk::SampleCountFlagBits::e4;
 

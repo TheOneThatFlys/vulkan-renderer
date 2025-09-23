@@ -17,36 +17,19 @@ struct HierarchyComponent {
     std::vector<ECS::Entity> children;
 
     // generate a hierarchy component from a parent and add it onto the child
-    static void addChild(const ECS::Entity parent, const ECS::Entity child) {
-        assert(parent >= 0 && child >= 0);
-        assert(!ECS::hasComponent<HierarchyComponent>(child));
-        assert(ECS::hasComponent<HierarchyComponent>(parent));
-        auto &parentHierarchy = ECS::getComponent<HierarchyComponent>(parent);
-        parentHierarchy.children.push_back(child);
-        ECS::addComponent<HierarchyComponent>(child, {parent, {}});
-    }
+    static void addChild(ECS::Entity parent, ECS::Entity child);
 
     // generate a hierarchy component with no parent and add to child
-    static void addEmpty(const ECS::Entity child) {
-        assert(child >= 0);
-        ECS::addComponent<HierarchyComponent>(child, {-1, {}});
-    }
+    static void addEmpty(ECS::Entity child);
 
     // move a child component to a new parent
-    static void move(const ECS::Entity newParent, const ECS::Entity child) {
-        assert(ECS::hasComponent<HierarchyComponent>(child));
-        assert(ECS::hasComponent<HierarchyComponent>(newParent));
+    static void move(ECS::Entity newParent, ECS::Entity child);
+};
 
-        auto &childHierarchy = ECS::getComponent<HierarchyComponent>(child);
-        if (childHierarchy.parent != -1) {
-            auto& parentsChildren = ECS::getComponent<HierarchyComponent>(childHierarchy.parent).children;
-            std::erase(parentsChildren, child);
-        }
+struct BoundingVolume {
+    OBB obb;
 
-        auto &parentHierarchy = ECS::getComponent<HierarchyComponent>(newParent);
-        parentHierarchy.children.push_back(child);
-        childHierarchy.parent = newParent;
-    }
+    static BoundingVolume from(ECS::Entity entity);
 };
 
 struct Transform {
@@ -55,50 +38,10 @@ struct Transform {
     glm::vec3 scale = glm::vec3(1.0f, 1.0f, 1.0f);
     glm::mat4 transform = glm::mat4(1.0f);
 
-    static glm::vec3 getTransform(const glm::mat4& matrix) {
-        return glm::vec3(matrix[3]);
-    }
-
-    static glm::vec3 getScale(const glm::mat4& matrix) {
-        return {
-            glm::length(matrix[0]),
-            glm::length(matrix[1]),
-            glm::length(matrix[2])
-        };
-    }
-
-    static glm::quat getRotation(const glm::mat4& matrix) {
-        glm::mat4 matCpy = matrix;
-        const auto scale = getScale(matrix);
-        matCpy[0] /= scale.x;
-        matCpy[1] /= scale.y;
-        matCpy[2] /= scale.z;
-        return glm::quat_cast(matCpy);
-    }
-
-    static void updateTransform(const ECS::Entity entity) {
-        const auto hierarchy = ECS::getComponentOptional<HierarchyComponent>(entity);
-        auto& [position, rotation, scale, transform] = ECS::getComponent<Transform>(entity);
-
-        transform = glm::translate(glm::mat4(1.0f), position);
-        transform = transform * glm::mat4_cast(rotation);
-        transform = glm::scale(transform, scale);
-
-        if (hierarchy && hierarchy->parent != -1) {
-            const auto parentTransform = ECS::getComponentOptional<Transform>(hierarchy->parent);
-            if (parentTransform) {
-                transform = parentTransform->transform * transform;
-            }
-        }
-
-        if (hierarchy) {
-            for (const ECS::Entity child : hierarchy->children) {
-                if (ECS::hasComponent<Transform>(child)) {
-                    updateTransform(child);
-                }
-            }
-        }
-    }
+    static glm::vec3 getTransform(const glm::mat4& matrix);
+    static glm::vec3 getScale(const glm::mat4& matrix);
+    static glm::quat getRotation(const glm::mat4& matrix);
+    static void updateTransform(ECS::Entity entity);
 };
 
 struct Model3D {

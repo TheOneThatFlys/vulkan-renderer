@@ -96,6 +96,7 @@ void Renderer3D::createPipelines() {
 		.addShaderStage("shaders/model.vert.spv")
         .addShaderStage("shaders/model.frag.spv")
         .setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
+		.addAttachment(m_engine->getSwapColourFormat())
 		.setSamples(m_samples)
 
         .addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
@@ -113,6 +114,7 @@ void Renderer3D::createPipelines() {
 		.addShaderStage("shaders/xray.vert.spv")
 		.addShaderStage("shaders/xray.frag.spv")
 		.setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
+		.addAttachment(m_engine->getSwapColourFormat())
 		.setPolygonMode(vk::PolygonMode::eLine)
 		.setSamples(m_samples)
 		.disableDepthTest()
@@ -166,6 +168,8 @@ void Renderer3D::beginRender(const vk::raii::CommandBuffer& commandBuffer, const
 		colourAttachment.resolveImageLayout = vk::ImageLayout::eColorAttachmentOptimal;
 	}
 
+	const std::array attachments = { colourAttachment };
+
 	vk::RenderingAttachmentInfo depthAttachment = {
 		.imageView = m_depthBufferImage,
 		.imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
@@ -179,8 +183,8 @@ void Renderer3D::beginRender(const vk::raii::CommandBuffer& commandBuffer, const
 			.extent = m_extent
 		},
 		.layerCount = 1,
-		.colorAttachmentCount = 1,
-		.pColorAttachments = &colourAttachment,
+		.colorAttachmentCount = static_cast<u32>(attachments.size()),
+		.pColorAttachments = attachments.data(),
 		.pDepthAttachment = &depthAttachment
 	};
 
@@ -237,7 +241,7 @@ void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
 		for (const ECS::Entity entity : entities) {
 			++m_debugInfo.totalInstanceCount;
 
-			if (!cameraFrustum.intersects(createBoundingVolume(entity))) continue;
+			if (!cameraFrustum.intersects(ECS::getComponent<BoundingVolume>(entity).obb)) continue;
 
 			++m_debugInfo.renderedInstanceCount;
 
@@ -270,28 +274,6 @@ void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
 void Renderer3D::endRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image) const {
 	commandBuffer.endRendering();
 	m_engine->transitionImageLayout(image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR);
-}
-
-OBB Renderer3D::createBoundingVolume(const ECS::Entity entity) const {
-	assert(ECS::hasComponent<Transform>(entity));
-	assert(ECS::hasComponent<Model3D>(entity));
-
-	const auto& transform = ECS::getComponent<Transform>(entity);
-	const auto& model = ECS::getComponent<Model3D>(entity);
-
-	const glm::vec3 globalScale = Transform::getScale(transform.transform);
-	const auto localOBB = model.mesh->getLocalOBB();
-	const auto scaledCenter = glm::vec3(
-		glm::dot(glm::vec3(transform.transform[0][0], transform.transform[1][0], transform.transform[2][0]), localOBB.center),
-		glm::dot(glm::vec3(transform.transform[0][1], transform.transform[1][1], transform.transform[2][1]), localOBB.center),
-		glm::dot(glm::vec3(transform.transform[0][2], transform.transform[1][2], transform.transform[2][2]), localOBB.center)
-	);
-
-	return {
-		.center = Transform::getTransform(transform.transform) + scaledCenter,
-		.extent = globalScale * localOBB.extent,
-		.rotation = Transform::getRotation(transform.transform)
-	};
 }
 
 void Renderer3D::highlightEntity(ECS::Entity entity) {

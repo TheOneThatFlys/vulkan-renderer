@@ -69,6 +69,7 @@ void BoundingVolumeRenderer::createPipeline(const vk::SampleCountFlagBits sample
 		.addShaderStage("shaders/line.vert.spv")
 		.addShaderStage("shaders/line.frag.spv")
 		.setVertexInfo(BasicVertex::getBindingDescription(), BasicVertex::getAttributeDescriptions())
+		.addAttachment(m_engine->getSwapColourFormat())
 		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
 		.addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex) // model data
 		.setTopology(vk::PrimitiveTopology::eLineList)

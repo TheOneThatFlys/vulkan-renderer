@@ -29,6 +29,11 @@ struct Sphere {
     }
 };
 
+struct Ray {
+    glm::vec3 origin;
+    glm::vec3 direction;
+};
+
 struct OBB {
     glm::vec3 center;
     glm::vec3 extent;
@@ -36,13 +41,67 @@ struct OBB {
 
     // returns true if the OBB intersects or is forward from the plane (based on plane normal)
     bool intersectsOrForwards(const Plane& plane) const {
-        const glm::quat invRotation = glm::conjugate(rotation);
-        const glm::vec3 rotatedNormal = glm::normalize(invRotation * plane.normal);
-        const glm::vec3 pointOnPlane = plane.normal * plane.d - center;
-        const Plane rotatedPlane = { rotatedNormal, glm::dot(rotatedNormal, invRotation * pointOnPlane + center) };
         // adapted from https://gdbooks.gitbooks.io/3dcollisions/content/Chapter2/static_aabb_plane.html
-        const float r = glm::dot(extent, glm::abs(rotatedNormal));
+        const Plane rotatedPlane = transform(plane);
+        const float r = glm::dot(extent, glm::abs(rotatedPlane.normal));
         return -r <= rotatedPlane.distanceToSigned(center);
+    }
+
+    // returns -1.0f if no intersections, or else the distance of the intersection
+    float intersects(const Ray& ray) const {
+        // adapted from https://gdbooks.gitbooks.io/3dcollisions/content/Chapter3/raycast_aabb.html
+        const Ray newRay = transform(ray);
+        const glm::vec3 invD = 1.0f / newRay.direction;
+        const glm::vec3 min = center - extent;
+        const glm::vec3 max = center + extent;
+
+        const glm::vec3 a = (min - ray.origin) * invD;
+        const glm::vec3 b = (max - ray.origin) * invD;
+
+
+        float tmin = std::max(std::max(std::min(a.x, b.x), std::min(a.y, b.y)), std::min(a.z, b.z));
+        float tmax = std::min(std::min(std::max(a.x, b.x), std::max(a.y, b.y)), std::max(a.z, b.z));
+
+        // if tmax < 0, ray (line) is intersecting AABB, but whole AABB is behind us
+        if (tmax < 0) {
+            return -1.0f;
+        }
+
+        // if tmin > tmax, ray doesn't intersect AABB
+        if (tmin > tmax) {
+            return -1.0f;
+        }
+
+        if (tmin < 0.0f) {
+            return tmax;
+        }
+        return tmin;
+    }
+
+private:
+    // transform a point from world space into OBB's space
+    // so that from the point's perspective the OBB is axis aligned
+    glm::vec3 transform(const glm::vec3& point) const {
+        const glm::quat invRotation = glm::conjugate(rotation);
+        return invRotation * (point - center) + center;
+    }
+
+    Plane transform(const Plane& plane) const {
+        const glm::quat invRotation = glm::conjugate(rotation);
+        const glm::vec3 rotatedNormal = invRotation * plane.normal;
+        const glm::vec3 pointOnPlane = plane.normal * plane.d - center;
+        return Plane(
+            rotatedNormal,
+            glm::dot(rotatedNormal, invRotation * pointOnPlane + center)
+        );
+    }
+
+    Ray transform(const Ray& ray) const {
+        const glm::quat invRotation = glm::conjugate(rotation);
+        return {
+            .origin = invRotation * (ray.origin - center) + center,
+            .direction = invRotation * ray.direction
+        };
     }
 };
 
