@@ -2,6 +2,8 @@
 
 ---
 
+- Change selection to be per pixel
+- Move forward decl. of VulkanEngine into Common.h
 - Change pipeline layout to shared pointer
 - De-systemise a bit
 - Fix debug window probably crashing if entities are removed and all ECS ids are cycled round

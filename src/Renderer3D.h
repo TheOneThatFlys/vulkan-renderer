@@ -7,6 +7,7 @@
 #include "Pipeline.h"
 #include "UniformBufferBlock.h"
 #include "BoundingVolumeRenderer.h"
+#include "ModelSelector.h"
 
 struct FrameUniforms {
     glm::mat4 view;
@@ -45,6 +46,9 @@ public:
     void setExtent(vk::Extent2D extent);
     RendererDebugInfo getDebugInfo() const;
     BoundingVolumeRenderer* getBoundingVolumeRenderer() const;
+    ModelSelector* getModelSelector() const;
+    const std::vector<ECS::Entity>& getLastRenderedEntities() const;
+    ECS::Entity getCamera() const;
 
     void setSampleCount(vk::SampleCountFlagBits samples);
     vk::SampleCountFlagBits getSampleCount() const;
@@ -93,10 +97,13 @@ private:
     UniformBufferBlock<FragFrameData> m_fragFrameUniforms;
 
     std::unique_ptr<BoundingVolumeRenderer> m_boundingVolumeRenderer;
+    std::unique_ptr<ModelSelector> m_modelSelector;
 
     RendererDebugInfo m_debugInfo;
 
     std::unordered_map<Material*, std::vector<ECS::Entity>> m_sortedEntities;
+    std::vector<ECS::Entity> m_renderedEntities;
+
 
     ECS::Entity m_highlightedEntity = -1;
 };

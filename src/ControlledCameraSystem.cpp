@@ -3,10 +3,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
 
+#include "VulkanEngine.h"
+#include "Renderer3D.h"
 #include "Components.h"
 #include "InputManager.h"
 
-ControlledCameraSystem::ControlledCameraSystem(GLFWwindow *window) : m_window(window) {
+ControlledCameraSystem::ControlledCameraSystem(VulkanEngine* engine, GLFWwindow *window) : m_engine(engine), m_window(window) {
     // capture mouse
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     InputManager::disableMouseAcceleration();
@@ -53,9 +55,12 @@ void ControlledCameraSystem::update(float deltaTime) {
         if (camera.capturingMouse) {
             glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
+            m_engine->getRenderer()->getModelSelector()->disable();
+
         } else {
             glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+            m_engine->getRenderer()->getModelSelector()->enable();
         }
     }
 
@@ -81,9 +86,7 @@ void ControlledCameraSystem::update(float deltaTime) {
 
 glm::mat4 ControlledCameraSystem::getViewMatrix() const {
     const ControlledCamera& camera = getCamera();
-    const glm::vec3 front = getFrontVector();
-    const glm::vec3 right = glm::normalize(glm::cross(front, glm::vec3(0.0f, 1.0f, 0.0f)));
-    const glm::vec3 up = glm::normalize(glm::cross(right, front));
+    const auto [front, right, up] = getVectors();
     return glm::lookAt(camera.position, camera.position + front, up);
 }
 
@@ -96,10 +99,7 @@ glm::mat4 ControlledCameraSystem::getProjectionMatrix() const {
 
 Frustum ControlledCameraSystem::getFrustum() const {
     const ControlledCamera& camera = getCamera();
-
-    const glm::vec3 cameraFront = getFrontVector();
-    const glm::vec3 cameraRight = glm::normalize(glm::cross(cameraFront, glm::vec3(0.0f, 1.0f, 0.0f)));
-    const glm::vec3 cameraUp = glm::normalize(glm::cross(cameraRight, cameraFront));
+    const auto [cameraFront, cameraRight, cameraUp] = getVectors();
 
     const float halfHeight = camera.far * std::tan(camera.fov * 0.5f);
     const float halfWidth = halfHeight * camera.aspect;
@@ -122,6 +122,26 @@ glm::vec3 ControlledCameraSystem::getFrontVector() const {
         sin(camera.pitch),
         sin(camera.yaw) * cos(camera.pitch)
     ));
+}
+
+CameraVectors ControlledCameraSystem::getVectors() const {
+    const glm::vec3 front = getFrontVector();
+    const glm::vec3 right = glm::normalize(glm::cross(front, glm::vec3(0.0f, 1.0f, 0.0f)));
+    const glm::vec3 up = glm::normalize(glm::cross(right, front));
+
+    return {
+        .front = front,
+        .right = right,
+        .up = up
+    };
+}
+
+Ray ControlledCameraSystem::normalisedScreenToRay(const glm::vec2 normalisedScreenCoordinates) const {
+    const ControlledCamera& camera = getCamera();
+    return {
+        .origin = camera.position,
+        .direction = glm::normalize(glm::inverse(glm::mat3(getViewMatrix())) * glm::vec3(glm::vec2(glm::inverse(getProjectionMatrix()) * glm::vec4(normalisedScreenCoordinates.x, normalisedScreenCoordinates.y, -1.0f, 1.0f)), -1.0f))
+    };
 }
 
 ControlledCamera & ControlledCameraSystem::getCamera() const {

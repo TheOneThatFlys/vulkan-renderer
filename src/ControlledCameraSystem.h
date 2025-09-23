@@ -7,18 +7,24 @@
 #include "ECS.h"
 #include "Volumes.h"
 
+struct CameraVectors {
+    glm::vec3 front, right, up;
+};
+
 class ControlledCameraSystem : public ECS::System, public IUpdatable {
 public:
-    explicit ControlledCameraSystem(GLFWwindow* window);
+    explicit ControlledCameraSystem(VulkanEngine* engine, GLFWwindow* window);
     void update(float deltaTime) override;
     glm::mat4 getViewMatrix() const;
     glm::mat4 getProjectionMatrix() const;
     Frustum getFrustum() const;
     // get normalized vector
     glm::vec3 getFrontVector() const;
+    CameraVectors getVectors() const;
+    Ray normalisedScreenToRay(glm::vec2 normalisedScreenCoordinates) const;
 
 private:
     ControlledCamera& getCamera() const;
+    VulkanEngine* m_engine;
     GLFWwindow* m_window;
-    float m_aspect = 1.0f;
 };

@@ -174,7 +174,7 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
             ImGui::InputInt("Current ID", &s);
             m_engine->getRenderer()->highlightEntity(s);
             if (ImGui::Button("Clear")) {
-                m_engine->getRenderer()->highlightEntity(-1);
+                m_engine->getRenderer()->highlightEntity(ECS::NULL_ENTITY);
             }
 
             ImGui::SeparatorText("Scene");

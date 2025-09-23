@@ -75,6 +75,8 @@ public:
 	void setWindowSize(u32 width, u32 height) const;
 	std::pair<u32, u32> getWindowSize() const;
 
+	void addUpdateListener(IUpdatable* updatable);
+
 	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
 	void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const;
 	std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1) const;

@@ -43,6 +43,8 @@ add_executable (VulkanRenderer
         src/BoundingVolumeRenderer.h
         src/EntitySystem.cpp
         src/EntitySystem.h
+        src/ModelSelector.cpp
+        src/ModelSelector.h
 )
 
 target_compile_definitions(VulkanRenderer PUBLIC

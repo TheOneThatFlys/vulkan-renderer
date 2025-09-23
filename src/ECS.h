@@ -22,6 +22,8 @@ namespace ECS {
 
     using Signature = std::bitset<MAX_COMPONENTS>;
 
+    constexpr Entity NULL_ENTITY = -1;
+
     class IComponentArray {
     public:
         virtual ~IComponentArray() = default;

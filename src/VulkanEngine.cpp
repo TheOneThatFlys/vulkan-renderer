@@ -156,6 +156,10 @@ std::pair<u32, u32> VulkanEngine::getWindowSize() const {
 	return { static_cast<u32>(width), static_cast<u32>(height) };
 }
 
+void VulkanEngine::addUpdateListener(IUpdatable *updatable) {
+	m_updatables.push_back(updatable);
+}
+
 void VulkanEngine::initWindow() {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -203,7 +207,7 @@ void VulkanEngine::initECS() {
 	ECS::registerSystem<EntitySystem>();
 	ECS::setSystemSignature<EntitySystem>(ECS::createSignature<>());
 
-	m_updatables.push_back(ECS::registerSystem<ControlledCameraSystem>(m_window));
+	m_updatables.push_back(ECS::registerSystem<ControlledCameraSystem>(this, m_window));
 	ECS::setSystemSignature<ControlledCameraSystem>(ECS::createSignature<ControlledCamera>());
 
 	m_renderer = ECS::registerSystem<Renderer3D>(this, m_swapExtent);

@@ -55,9 +55,8 @@ struct OBB {
         const glm::vec3 min = center - extent;
         const glm::vec3 max = center + extent;
 
-        const glm::vec3 a = (min - ray.origin) * invD;
-        const glm::vec3 b = (max - ray.origin) * invD;
-
+        const glm::vec3 a = (min - newRay.origin) * invD;
+        const glm::vec3 b = (max - newRay.origin) * invD;
 
         float tmin = std::max(std::max(std::min(a.x, b.x), std::min(a.y, b.y)), std::min(a.z, b.z));
         float tmax = std::min(std::min(std::max(a.x, b.x), std::max(a.y, b.y)), std::max(a.z, b.z));
@@ -76,6 +75,14 @@ struct OBB {
             return tmax;
         }
         return tmin;
+    }
+
+    bool intersects(const glm::vec3& point) const {
+        const glm::vec3 min = center - extent;
+        const glm::vec3 max = center + extent;
+        return point.x >= min.x && point.x <= max.x
+            && point.y >= min.y && point.y <= max.y
+            && point.z >= min.z && point.z <= max.z;
     }
 
 private:

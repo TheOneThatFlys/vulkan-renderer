@@ -14,6 +14,7 @@ Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
     , m_modelUniforms(m_engine, 0, ECS::MAX_ENTITIES)
 	, m_fragFrameUniforms(m_engine, 1)
 	, m_boundingVolumeRenderer(std::make_unique<BoundingVolumeRenderer>(m_engine, this))
+	, m_modelSelector(std::make_unique<ModelSelector>(m_engine))
 {
 	createPipelines();
 	createDepthBuffer();
@@ -30,6 +31,8 @@ Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
 	m_camera = ECS::createEntity();
     ECS::addComponent<ControlledCamera>(m_camera, {.aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height)});
     ECS::addComponent<NamedComponent>(m_camera, {"Camera"});
+
+	m_engine->addUpdateListener(m_modelSelector.get());
 }
 
 void Renderer3D::render(const vk::raii::CommandBuffer &commandBuffer, const vk::Image& image, const vk::ImageView& imageView) {
@@ -80,6 +83,18 @@ RendererDebugInfo Renderer3D::getDebugInfo() const {
 
 BoundingVolumeRenderer * Renderer3D::getBoundingVolumeRenderer() const {
 	return m_boundingVolumeRenderer.get();
+}
+
+ModelSelector * Renderer3D::getModelSelector() const {
+	return m_modelSelector.get();
+}
+
+const std::vector<ECS::Entity> & Renderer3D::getLastRenderedEntities() const {
+	return m_renderedEntities;
+}
+
+ECS::Entity Renderer3D::getCamera() const {
+	return m_camera;
 }
 
 void Renderer3D::setSampleCount(const vk::SampleCountFlagBits samples) {
@@ -234,7 +249,8 @@ void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
 
 	const Frustum cameraFrustum = ECS::getSystem<ControlledCameraSystem>()->getFrustum();
 
-	i32 highlightedIndex = -1;
+	m_renderedEntities.clear();
+	i32 highlightedIndex = ECS::NULL_ENTITY;
 	i32 i = 0;
 	for (const auto& [material, entities] : m_sortedEntities) {
 		bool firstRendered = true;
@@ -242,6 +258,8 @@ void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
 			++m_debugInfo.totalInstanceCount;
 
 			if (!cameraFrustum.intersects(ECS::getComponent<BoundingVolume>(entity).obb)) continue;
+
+			m_renderedEntities.push_back(entity);
 
 			++m_debugInfo.renderedInstanceCount;
 
@@ -263,7 +281,7 @@ void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
 			++i;
 		}
 	}
-	if (highlightedIndex != -1) {
+	if (highlightedIndex != ECS::NULL_ENTITY) {
 		commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_xrayPipeline->getLayout(), FRAME_SET_NUMBER, {*m_frameDescriptor}, nullptr);
 		commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_xrayPipeline->getPipeline());
 		commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_xrayPipeline->getLayout(), MODEL_SET_NUMBER, {*m_modelDescriptor}, {highlightedIndex * m_modelUniforms.getItemSize()});
