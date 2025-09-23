@@ -11,27 +11,29 @@ ModelSelector::ModelSelector(VulkanEngine *engine) : m_engine(engine) {
 void ModelSelector::update(float) {
     if (!m_enabled) return;
 
-    m_selected = ECS::NULL_ENTITY;
     const auto renderer = m_engine->getRenderer();
+    if (InputManager::mousePressed(GLFW_MOUSE_BUTTON_1)) {
+        m_selected = ECS::NULL_ENTITY;
 
-    const auto [winWidth, winHeight] = m_engine->getWindowSize();
-    glm::vec2 mousePosition = InputManager::mousePos();
-    mousePosition /= glm::vec2(winWidth, winHeight);
-    mousePosition = mousePosition * 2.0f - 1.0f;
+        const auto [winWidth, winHeight] = m_engine->getWindowSize();
+        glm::vec2 mousePosition = InputManager::mousePos();
+        mousePosition /= glm::vec2(winWidth, winHeight);
+        mousePosition = mousePosition * 2.0f - 1.0f;
 
-    const Ray ray = ECS::getSystem<ControlledCameraSystem>()->normalisedScreenToRay(mousePosition);
-    float minDistance = FLT_MAX;
-    for (const auto entity : renderer->m_entities) {
-        // if (!ECS::hasComponent<BoundingVolume>(entity)) Logger::warn("Using invalid OBB");
-        const auto& obb = ECS::getComponent<BoundingVolume>(entity).obb;
+        const Ray ray = ECS::getSystem<ControlledCameraSystem>()->normalisedScreenToRay(mousePosition);
+        float minDistance = FLT_MAX;
+        for (const auto entity : renderer->m_entities) {
+            // if (!ECS::hasComponent<BoundingVolume>(entity)) Logger::warn("Using invalid OBB");
+            const auto& obb = ECS::getComponent<BoundingVolume>(entity).obb;
 
-        // ignore if inside the bounding box
-        if (obb.intersects(ray.origin)) continue;
+            // ignore if inside the bounding box
+            if (obb.intersects(ray.origin)) continue;
 
-        float distance = obb.intersects(ray);
-        if (distance >= 0 && distance < minDistance) {
-            m_selected = entity;
-            minDistance = distance;
+            float distance = obb.intersects(ray);
+            if (distance >= 0 && distance < minDistance) {
+                m_selected = entity;
+                minDistance = distance;
+            }
         }
     }
 

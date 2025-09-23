@@ -8,10 +8,12 @@ void InputManager::setWindow(GLFWwindow *window) {
     get().m_window = window;
     glfwSetKeyCallback(window, keyCallback);
     glfwSetScrollCallback(window, mouseScrollCallback);
+    glfwSetMouseButtonCallback(window, mouseButtonCallback);
 }
 
 void InputManager::update() {
     get().m_pressedKeysThisFrame.reset();
+    get().m_mouseButtonsThisFrame.reset();
     get().m_lastMousePos = get().m_currentMousePos;
     get().m_mouseScroll = glm::vec2(0.0f);
     double x, y;
@@ -33,6 +35,10 @@ bool InputManager::keyPressed(const u32 key) {
 
 bool InputManager::mouseHeld(u32 button) {
     return glfwGetMouseButton(get().m_window, button) == GLFW_PRESS;
+}
+
+bool InputManager::mousePressed(u32 button) {
+    return get().m_mouseButtonsThisFrame.test(button);
 }
 
 glm::vec2 InputManager::mousePos() {
@@ -86,4 +92,10 @@ void InputManager::keyCallback(GLFWwindow *, int key, int, int action, int) {
 
 void InputManager::mouseScrollCallback(GLFWwindow *, double dx, double dy) {
     get().m_mouseScroll += glm::vec2(dx, dy);
+}
+
+void InputManager::mouseButtonCallback(GLFWwindow *, int button, int action, int) {
+    if (action == GLFW_PRESS) {
+        get().m_mouseButtonsThisFrame.set(button);
+    }
 }
