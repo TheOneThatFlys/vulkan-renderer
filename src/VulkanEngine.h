@@ -83,6 +83,10 @@ public:
 	vk::raii::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags) const;
 	void copyBufferToImage(const vk::raii::Buffer& buffer, const vk::raii::Image& image, u32 width, u32 height) const;
 	void transitionImageLayout(const vk::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
+	void transitionImageLayout(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
+
+	vk::raii::CommandBuffer beginSingleCommand() const;
+	void endSingleCommand(const vk::raii::CommandBuffer& commandBuffer) const;
 
 private:
 	void initWindow();
@@ -110,9 +114,6 @@ private:
 	vk::Extent2D chooseExtent(const vk::SurfaceCapabilitiesKHR& capabilities) const;
 
 	u32 findMemoryType(u32 typeFilter, vk::MemoryPropertyFlags properties) const;
-
-	vk::raii::CommandBuffer beginSingleCommand() const;
-	void endSingleCommand(const vk::raii::CommandBuffer& commandBuffer) const;
 
 	void mainLoop();
 	void recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, u32 imageIndex);

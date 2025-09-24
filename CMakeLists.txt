@@ -101,6 +101,8 @@ set(SHADER_FILES
         line.frag
         xray.vert
         xray.frag
+        id.vert
+        id.frag
 )
 add_shaders(Shaders ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders ${SHADER_FILES})
 add_dependencies(VulkanRenderer Shaders)

@@ -546,6 +546,12 @@ void VulkanEngine::copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize siz
 }
 
 void VulkanEngine::transitionImageLayout(const vk::Image &image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const {
+	const auto commandBuffer = beginSingleCommand();
+	transitionImageLayout(commandBuffer, image, oldLayout, newLayout);
+	endSingleCommand(commandBuffer);
+}
+
+void VulkanEngine::transitionImageLayout(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const {
 	vk::PipelineStageFlags srcStage;
 	vk::PipelineStageFlags dstStage;
 	vk::AccessFlags srcAccess;
@@ -575,11 +581,15 @@ void VulkanEngine::transitionImageLayout(const vk::Image &image, vk::ImageLayout
 		srcStage = vk::PipelineStageFlagBits::eTopOfPipe;
 		dstStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 	}
+	else if (oldLayout == vk::ImageLayout::eColorAttachmentOptimal && newLayout == vk::ImageLayout::eTransferSrcOptimal) {
+		srcAccess = vk::AccessFlagBits::eColorAttachmentWrite;
+		dstAccess = vk::AccessFlagBits::eTransferRead;
+		srcStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+		dstStage = vk::PipelineStageFlagBits::eTransfer;
+	}
 	else {
 		throw std::invalid_argument("Layout transition not supported");
 	}
-
-	vk::raii::CommandBuffer commandBuffer = beginSingleCommand();
 
 	vk::ImageMemoryBarrier barrier = {
 		.srcAccessMask = srcAccess,
@@ -598,8 +608,6 @@ void VulkanEngine::transitionImageLayout(const vk::Image &image, vk::ImageLayout
 		}
 	};
 	commandBuffer.pipelineBarrier(srcStage, dstStage, {}, nullptr, nullptr, barrier);
-
-	endSingleCommand(commandBuffer);
 }
 
 void VulkanEngine::copyBufferToImage(const vk::raii::Buffer &buffer, const vk::raii::Image &image, u32 width, u32 height) const {

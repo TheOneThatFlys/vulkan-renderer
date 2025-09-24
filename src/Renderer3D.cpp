@@ -14,7 +14,7 @@ Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
     , m_modelUniforms(m_engine, 0, ECS::MAX_ENTITIES)
 	, m_fragFrameUniforms(m_engine, 1)
 	, m_boundingVolumeRenderer(std::make_unique<BoundingVolumeRenderer>(m_engine, this))
-	, m_modelSelector(std::make_unique<ModelSelector>(m_engine))
+	, m_modelSelector(std::make_unique<ModelSelector>(m_engine, m_extent))
 {
 	createPipelines();
 	createDepthBuffer();

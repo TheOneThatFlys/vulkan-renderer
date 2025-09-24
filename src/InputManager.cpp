@@ -1,5 +1,7 @@
 #include "InputManager.h"
 
+#include <glm/glm.hpp>
+
 #include "AssetManager.h"
 
 InputManager InputManager::s_instance{};
@@ -33,11 +35,11 @@ bool InputManager::keyPressed(const u32 key) {
     return get().m_pressedKeysThisFrame.test(packCode(key));
 }
 
-bool InputManager::mouseHeld(u32 button) {
-    return glfwGetMouseButton(get().m_window, button) == GLFW_PRESS;
+bool InputManager::mouseHeld(const u32 button) {
+    return glfwGetMouseButton(get().m_window, static_cast<int>(button)) == GLFW_PRESS;
 }
 
-bool InputManager::mousePressed(u32 button) {
+bool InputManager::mousePressed(const u32 button) {
     return get().m_mouseButtonsThisFrame.test(button);
 }
 
