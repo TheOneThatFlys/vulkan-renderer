@@ -18,27 +18,7 @@ ModelSelector::ModelSelector(VulkanEngine *engine, vk::Extent2D extent) : m_engi
         .addBinding(MODEL_SET_NUMBER, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex)
         .create();
 
-    std::tie(m_colourImage, m_colourImageMemory) = m_engine->createImage(
-        m_extent.width,
-        m_extent.height,
-        getTextureFormat(),
-        vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc,
-        vk::MemoryPropertyFlagBits::eDeviceLocal
-    );
-    m_colourImageView = m_engine->createImageView(m_colourImage, getTextureFormat(), vk::ImageAspectFlagBits::eColor);
-
-    std::tie(m_depthImage, m_depthImageMemory) = m_engine->createImage(
-        m_extent.width,
-        m_extent.height,
-        m_engine->getDepthFormat(),
-        vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eDepthStencilAttachment,
-        vk::MemoryPropertyFlagBits::eDeviceLocal
-    );
-    m_depthImageView = m_engine->createImageView(m_depthImage, m_engine->getDepthFormat(), vk::ImageAspectFlagBits::eDepth);
-
-    std::tie(m_outputBuffer, m_outputBufferMemory) = m_engine->createBuffer(m_colourImage.getMemoryRequirements().size, vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
+    createAttachments();
 
     m_modelDescriptor = m_pipeline->createDescriptorSet(MODEL_SET_NUMBER);
     m_frameDescriptor = m_pipeline->createDescriptorSet(FRAME_SET_NUMBER);
@@ -50,7 +30,7 @@ ModelSelector::ModelSelector(VulkanEngine *engine, vk::Extent2D extent) : m_engi
 void ModelSelector::update(float) {
     const auto renderer = m_engine->getRenderer();
     if (m_selected != ECS::NULL_ENTITY) {
-        renderer->getBoundingVolumeRenderer()->queueOBB(ECS::getComponent<BoundingVolume>(m_selected).obb, glm::vec3(1.0f, 0.0f, 1.0f));
+        renderer->getBoundingVolumeRenderer()->queueOBB(ECS::getComponent<BoundingVolume>(m_selected).obb, glm::vec3(1.0f, 1.0f, 1.0f));
     }
 
     if (!m_enabled) return;
@@ -68,7 +48,11 @@ void ModelSelector::enable() {
 
 void ModelSelector::disable() {
     m_enabled = false;
-    m_selected = ECS::NULL_ENTITY;
+}
+
+void ModelSelector::setExtent(vk::Extent2D extent) {
+    m_extent = extent;
+    createAttachments();
 }
 
 ECS::Entity ModelSelector::calculateSelectedEntity() {
@@ -176,6 +160,30 @@ ECS::Entity ModelSelector::calculateSelectedEntity() {
     m_outputBufferMemory.unmapMemory();
 
     return *static_cast<ECS::Entity*>(data);
+}
+
+void ModelSelector::createAttachments() {
+    std::tie(m_colourImage, m_colourImageMemory) = m_engine->createImage(
+            m_extent.width,
+            m_extent.height,
+            getTextureFormat(),
+            vk::ImageTiling::eOptimal,
+            vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc,
+            vk::MemoryPropertyFlagBits::eDeviceLocal
+        );
+    m_colourImageView = m_engine->createImageView(m_colourImage, getTextureFormat(), vk::ImageAspectFlagBits::eColor);
+
+    std::tie(m_depthImage, m_depthImageMemory) = m_engine->createImage(
+        m_extent.width,
+        m_extent.height,
+        m_engine->getDepthFormat(),
+        vk::ImageTiling::eOptimal,
+        vk::ImageUsageFlagBits::eDepthStencilAttachment,
+        vk::MemoryPropertyFlagBits::eDeviceLocal
+    );
+    m_depthImageView = m_engine->createImageView(m_depthImage, m_engine->getDepthFormat(), vk::ImageAspectFlagBits::eDepth);
+
+    std::tie(m_outputBuffer, m_outputBufferMemory) = m_engine->createBuffer(m_colourImage.getMemoryRequirements().size, vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
 }
 
 constexpr vk::Format ModelSelector::getTextureFormat() const {

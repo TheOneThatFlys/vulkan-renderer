@@ -18,6 +18,8 @@ public:
     void enable();
     void disable();
 
+    void setExtent(vk::Extent2D extent);
+
     constexpr vk::Format getTextureFormat() const;
 
     ECS::Entity calculateSelectedEntity();
@@ -31,6 +33,8 @@ private:
         glm::mat4 transform;
         ECS::Entity ID;
     };
+
+    void createAttachments();
 
     VulkanEngine* m_engine;
 

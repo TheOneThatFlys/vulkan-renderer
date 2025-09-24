@@ -75,6 +75,7 @@ void Renderer3D::setExtent(vk::Extent2D extent) {
 	ECS::getComponent<ControlledCamera>(m_camera).aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
 	createDepthBuffer();
 	createColourBuffer();
+	m_modelSelector->setExtent(extent);
 }
 
 RendererDebugInfo Renderer3D::getDebugInfo() const {
