@@ -127,10 +127,21 @@ namespace ECS {
 
     class System {
     public:
-        std::unordered_set<Entity> m_entities;
         virtual ~System() = default;
-        virtual void onEntityAdd(Entity entity) {}
-        virtual void onEntityRemove(Entity entity) {}
+        virtual void onEntityAdd(const Entity entity) {
+            m_entities.insert(entity);
+        }
+        virtual void onEntityRemove(const Entity entity) {
+            m_entities.erase(entity);
+        }
+        const std::unordered_set<Entity>& getEntities() {
+            return m_entities;
+        }
+        bool contains(const Entity entity) const {
+            return m_entities.contains(entity);
+        }
+    protected:
+        std::unordered_set<Entity> m_entities;
     };
 
     class SystemManager {
@@ -158,8 +169,7 @@ namespace ECS {
 
         void entityDestroyed(const Entity entity) {
             for (const auto& system : m_systems | std::views::values) {
-                if (system->m_entities.contains(entity)) {
-                    system->m_entities.erase(entity);
+                if (system->contains(entity)) {
                     system->onEntityRemove(entity);
                 }
             }
@@ -169,14 +179,12 @@ namespace ECS {
             for (const auto& [type, system] : m_systems) {
                 const Signature& systemSignature = m_signatures[type];
                 if ((systemSignature & entitySignature) == systemSignature) {
-                    if (!system->m_entities.contains(entity)) {
-                        system->m_entities.insert(entity);
+                    if (!system->contains(entity)) {
                         system->onEntityAdd(entity);
                     }
                 }
                 else {
-                    if (system->m_entities.contains(entity)) {
-                        system->m_entities.erase(entity);
+                    if (system->contains(entity)) {
                         system->onEntityRemove(entity);
                     }
                 }

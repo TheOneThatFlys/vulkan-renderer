@@ -201,7 +201,7 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
     // render bounding volumes
     const auto renderer = m_engine->getRenderer();
     BoundingVolumeRenderer* boundingVolumeRenderer = renderer->getBoundingVolumeRenderer();
-    for (const auto entity : renderer->m_entities) {
+    for (const auto entity : renderer->getEntities()) {
         if (!m_debugFlags.at(entity).test(eDisplayBoundingVolume)) continue;
         boundingVolumeRenderer->queueOBB(ECS::getComponent<BoundingVolume>(entity).obb, glm::vec3(1.0f, 1.0f, 1.0f));
     }

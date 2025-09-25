@@ -46,6 +46,7 @@ void Renderer3D::render(const vk::raii::CommandBuffer &commandBuffer, const vk::
 }
 
 void Renderer3D::onEntityAdd(const ECS::Entity entity) {
+	System::onEntityAdd(entity);
 	const auto& modelInfo = ECS::getComponent<Model3D>(entity);
 	if (!m_sortedEntities.contains(modelInfo.material)) {
 		m_sortedEntities.insert({modelInfo.material, std::vector<ECS::Entity>()});
@@ -54,6 +55,7 @@ void Renderer3D::onEntityAdd(const ECS::Entity entity) {
 }
 
 void Renderer3D::onEntityRemove(const ECS::Entity entity) {
+	System::onEntityRemove(entity);
 	const auto& modelInfo = ECS::getComponent<Model3D>(entity);
 	std::erase(m_sortedEntities.at(modelInfo.material), entity);
 }

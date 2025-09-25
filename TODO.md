@@ -2,7 +2,7 @@
 
 ---
 
-- Change selection to be per pixel
+- Change ECS Entity to class
 - Move forward decl. of VulkanEngine into Common.h
 - Change pipeline layout to shared pointer
 - De-systemise a bit
