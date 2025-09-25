@@ -1,6 +1,7 @@
 #include "ModelSelector.h"
 
 #include <chrono>
+#include <imgui.h>
 
 #include <glm/glm.hpp>
 
@@ -30,11 +31,13 @@ ModelSelector::ModelSelector(VulkanEngine *engine, vk::Extent2D extent) : m_engi
 void ModelSelector::update(float) {
     const auto renderer = m_engine->getRenderer();
     if (m_selected != ECS::NULL_ENTITY) {
-        renderer->getBoundingVolumeRenderer()->queueOBB(ECS::getComponent<BoundingVolume>(m_selected).obb, glm::vec3(1.0f, 1.0f, 1.0f));
+        renderer->getBoundingVolumeRenderer()->queueOBB(ECS::getComponent<BoundingVolume>(m_selected).obb, glm::vec3(1.0f, 0.657f, 0.0f));
     }
 
     if (!m_enabled) return;
 
+    // disable clicking when in debug window
+    if (ImGui::GetIO().WantCaptureMouse) return;
     if (InputManager::mousePressed(GLFW_MOUSE_BUTTON_1)) {
         m_selected = calculateSelectedEntity();
         renderer->highlightEntity(m_selected);
@@ -53,6 +56,10 @@ void ModelSelector::disable() {
 void ModelSelector::setExtent(vk::Extent2D extent) {
     m_extent = extent;
     createAttachments();
+}
+
+ECS::Entity ModelSelector::getSelected() const {
+    return m_selected;
 }
 
 ECS::Entity ModelSelector::calculateSelectedEntity() {

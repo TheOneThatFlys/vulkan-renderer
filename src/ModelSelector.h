@@ -19,11 +19,12 @@ public:
     void disable();
 
     void setExtent(vk::Extent2D extent);
+    ECS::Entity getSelected() const;
 
     constexpr vk::Format getTextureFormat() const;
 
-    ECS::Entity calculateSelectedEntity();
 private:
+
     struct SelectorFrameUniform {
         glm::mat4 view;
         glm::mat4 projection;
@@ -34,6 +35,7 @@ private:
         ECS::Entity ID;
     };
 
+    ECS::Entity calculateSelectedEntity();
     void createAttachments();
 
     VulkanEngine* m_engine;
