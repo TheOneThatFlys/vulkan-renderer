@@ -1,5 +1,6 @@
 #pragma once
 
+#include <imgui.h>
 #include <unordered_map>
 
 #include <glm/glm.hpp>
@@ -26,18 +27,20 @@ public:
     void rebuild() const;
 
 private:
-    void initVulkanImpl() const;
 
+
+    void initVulkanImpl() const;
     using UpdateCallback = void(*)(DebugWindow*);
     void setTimedUpdate(UpdateCallback func, int nFrames);
-
     void createUpdateCallbacks();
-
     void drawNodeRecursive(ECS::Entity entity);
-
     void setFlagForAllEntities(DebugFlags flag, bool value);
-
     static void drawMatrix(const glm::mat4& mat);
+
+    void performanceTab() const;
+    void renderTab() const;
+    void ecsTab();
+    void searchTab();
 
     VulkanEngine* m_engine;
 
@@ -53,4 +56,10 @@ private:
     VRAMUsageInfo m_vramUsage;
 
     std::array<std::bitset<32>, ECS::MAX_ENTITIES> m_debugFlags;
+
+    bool m_shouldFocusSearch = false;
+    std::string m_searchText;
+    ECS::Entity m_searchID = 0;
+    static constexpr u32 m_searchCountLimit = 16;
+    bool m_searchUseIDs = false;
 };

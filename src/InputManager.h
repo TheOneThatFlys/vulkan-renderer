@@ -4,6 +4,7 @@
 
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include <imgui.h>
 
 #include "Common.h"
 
@@ -42,5 +43,6 @@ private:
     glm::vec2 m_currentMousePos = glm::vec2(0.0f);
     glm::vec2 m_lastMousePos = glm::vec2(-1.0f);
     glm::vec2 m_mouseScroll = glm::vec2(0.0f);
+
     bool m_firstMouse = true;
 };

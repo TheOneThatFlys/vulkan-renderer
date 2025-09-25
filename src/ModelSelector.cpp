@@ -36,8 +36,6 @@ void ModelSelector::update(float) {
 
     if (!m_enabled) return;
 
-    // disable clicking when in debug window
-    if (ImGui::GetIO().WantCaptureMouse) return;
     if (InputManager::mousePressed(GLFW_MOUSE_BUTTON_1)) {
         m_selected = calculateSelectedEntity();
         renderer->highlightEntity(m_selected);

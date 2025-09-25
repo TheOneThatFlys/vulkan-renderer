@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <vector>
 #include <array>
 #include <fstream>
@@ -72,6 +73,12 @@ inline std::vector<char> readFile(const std::string& filename) {
     file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
     file.close();
     return buffer;
+}
+
+inline std::string tolower(const std::string& str) {
+    std::string cpy = str;
+    std::ranges::transform(cpy.begin(), cpy.end(), cpy.begin(), [](unsigned char c) { return std::tolower(c); });
+    return cpy;
 }
 
 class IUpdatable {

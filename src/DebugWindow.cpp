@@ -20,6 +20,8 @@ DebugWindow::DebugWindow(VulkanEngine* engine, GLFWwindow *window) : m_engine(en
     ImGui_ImplGlfw_InitForVulkan(window, true);
     initVulkanImpl();
     createUpdateCallbacks();
+
+    m_searchText.resize(64);
 }
 
 DebugWindow::~DebugWindow() {
@@ -47,147 +49,17 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
         m_framePointer = 0;
         if (!m_framesFilled) m_framesFilled = true;
     }
-    // create elements
+
+    const auto [windowWidth, windowHeight] = m_engine->getWindowSize();
+    ImGui::SetNextWindowSizeConstraints({-1.0f, -1.0f}, {-1.0f, static_cast<float>(windowHeight) - 16.0f});
     ImGui::SetNextWindowPos(ImVec2(8, 8));
     ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
 
     if (ImGui::BeginTabBar("navbar")) {
-        if (ImGui::BeginTabItem("Performance")) {
-            // frame times
-            FrameTimeInfo avgTimes = { 0.0, 0.0, 0.0, 0.0 };
-            std::string frameTimeText, drawTimeText = "Loading...";
-            if (m_framesFilled) {
-                for (auto const& frameTime : m_frameTimes) {
-                    avgTimes.frameTime += frameTime.frameTime;
-                    avgTimes.gpuTime += frameTime.gpuTime;
-                    avgTimes.cpuTime += frameTime.cpuTime;
-                    avgTimes.drawWriteTime += frameTime.drawWriteTime;
-                }
-                avgTimes.frameTime /= FRAME_AVERAGE_COUNT;
-                avgTimes.gpuTime /= FRAME_AVERAGE_COUNT;
-                avgTimes.cpuTime /= FRAME_AVERAGE_COUNT;
-                avgTimes.drawWriteTime /= FRAME_AVERAGE_COUNT;
-            }
-
-            ImGui::Text(std::format("Frame:        {:.3f} ms ({:.0f} fps)", avgTimes.frameTime, 1000 / avgTimes.frameTime).c_str());
-            ImGui::Text(std::format("Draw:         {:.3f} ms ({:.0f} fps)", avgTimes.gpuTime, 1000 / avgTimes.gpuTime).c_str());
-            ImGui::Text(std::format("CPU (update): {:.3f} ms", avgTimes.cpuTime).c_str());
-            ImGui::Text(std::format("Cmd-write:    {:.3f} ms", avgTimes.drawWriteTime).c_str());
-
-            ImGui::Separator();
-            // memory usage
-            ImGui::Text("VRAM Usage");
-            size_t usedGB = m_vramUsage.gpuUsed;
-            size_t totalGB = m_vramUsage.gpuAvailable;
-            std::string progress = std::format("{} / {}", storageSizeToString(usedGB), storageSizeToString(totalGB));
-            ImGui::ProgressBar(static_cast<float>(usedGB) / static_cast<float>(totalGB), ImVec2(0.0f, 0.0f), progress.c_str());
-
-            ImGui::Separator();
-
-            const auto rendererInfo = m_engine->getRenderer()->getDebugInfo();
-            ImGui::Text(std::format("Total Instances:    {}", rendererInfo.totalInstanceCount).c_str());
-            ImGui::Text(std::format("Rendered Instances: {}", rendererInfo.renderedInstanceCount).c_str());
-            ImGui::Text(std::format("Material Switches:  {}", rendererInfo.materialSwitches).c_str());
-
-            ImGui::EndTabItem();
-        }
-
-        if (ImGui::BeginTabItem("Render")) {
-            ImGui::SeparatorText("Swapchain");
-
-            using Resolution = std::pair<u32, u32>;
-
-            constexpr std::array resolutions = {
-                Resolution{2560, 1440},
-                Resolution{1920, 1080},
-                Resolution{1280, 720},
-            };
-            const auto resToString = [&resolutions](const Resolution& res) -> std::string {
-                if (std::ranges::find(resolutions, res) == resolutions.end()) {
-                    return std::format("Custom ({}x{})", res.first, res.second);
-                }
-                return std::format("{}x{}", res.first, res.second);
-            };
-
-            const Resolution actualResolution = m_engine->getWindowSize();
-            if (ImGui::BeginCombo("Resolution", resToString(actualResolution).c_str())) {
-                for (const auto& resolution : resolutions) {
-                    const bool isSelected = resolution == actualResolution;
-                    if (ImGui::Selectable(resToString(resolution).c_str(), isSelected)) {
-                        m_engine->setWindowSize(resolution.first, resolution.second);
-                    }
-                    if (isSelected) {
-                        ImGui::SetItemDefaultFocus();
-                    }
-                }
-                ImGui::EndCombo();
-            }
-
-            static constexpr std::array sampleOptions = { vk::SampleCountFlagBits::e1, vk::SampleCountFlagBits::e2, vk::SampleCountFlagBits::e4, vk::SampleCountFlagBits::e8 };
-            static constexpr std::array sampleNames = { "Off", "MSAAx2", "MSAAx4", "MSAAx8" };
-
-            const auto currentSamples = m_engine->getRenderer()->getSampleCount();
-            int i = 0;
-            switch (currentSamples) {
-                case vk::SampleCountFlagBits::e1:
-                    i = 0;
-                    break;
-                case vk::SampleCountFlagBits::e2:
-                    i = 1;
-                    break;
-                case vk::SampleCountFlagBits::e4:
-                    i = 2;
-                    break;
-                case vk::SampleCountFlagBits::e8:
-                    i = 3;
-                    break;
-                default:
-                    i = -1;
-            }
-            if (ImGui::SliderInt("Antialiasing", &i, 0, static_cast<int>(sampleOptions.size()) - 1, sampleNames[i])) {
-                m_engine->getRenderer()->setSampleCount(sampleOptions.at(i));
-            }
-
-            bool isVsync = m_engine->getPresentMode() == vk::PresentModeKHR::eFifo;
-            if (ImGui::Checkbox("VSync", &isVsync)) {
-                m_engine->setPresentMode(isVsync ? vk::PresentModeKHR::eFifo : vk::PresentModeKHR::eImmediate);
-            }
-
-            ImGui::EndTabItem();
-        }
-
-        if (ImGui::BeginTabItem("ECS")) {
-            const auto& entities = ECS::getSystem<EntitySystem>()->get();
-
-            ImGui::SeparatorText("Bounding volumes");
-
-            if (ImGui::Button("Show all")) {
-                setFlagForAllEntities(eDisplayBoundingVolume, true);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Hide all")) {
-                setFlagForAllEntities(eDisplayBoundingVolume, false);
-            }
-
-            ImGui::SeparatorText("Highlighting");
-            int s = m_engine->getRenderer()->getHighlightedEntity();
-            ImGui::InputInt("Current ID", &s);
-            m_engine->getRenderer()->highlightEntity(s);
-            if (ImGui::Button("Clear")) {
-                m_engine->getRenderer()->highlightEntity(ECS::NULL_ENTITY);
-            }
-
-            ImGui::SeparatorText("Scene");
-
-            ImGui::Text("Total entities: %u", entities.size());
-            for (const ECS::Entity entity : entities) {
-                const auto hierarchy = ECS::getComponentOptional<HierarchyComponent>(entity);
-                if (!hierarchy || hierarchy->parent == -1) {
-                    drawNodeRecursive(entity);
-                }
-            }
-            ImGui::EndTabItem();
-        }
+        performanceTab();
+        renderTab();
+        ecsTab();
+        searchTab();
 
         ImGui::EndTabBar();
     }
@@ -400,5 +272,215 @@ void DebugWindow::drawMatrix(const glm::mat4 &matrix) {
             ImGui::Text("% .3f", matrix[col][row]);
             if (col != 3) ImGui::SameLine();
         }
+    }
+}
+
+void DebugWindow::performanceTab() const {
+    if (ImGui::BeginTabItem("Performance")) {
+        // frame times
+        FrameTimeInfo avgTimes = { 0.0, 0.0, 0.0, 0.0 };
+        std::string frameTimeText, drawTimeText = "Loading...";
+        if (m_framesFilled) {
+            for (auto const& frameTime : m_frameTimes) {
+                avgTimes.frameTime += frameTime.frameTime;
+                avgTimes.gpuTime += frameTime.gpuTime;
+                avgTimes.cpuTime += frameTime.cpuTime;
+                avgTimes.drawWriteTime += frameTime.drawWriteTime;
+            }
+            avgTimes.frameTime /= FRAME_AVERAGE_COUNT;
+            avgTimes.gpuTime /= FRAME_AVERAGE_COUNT;
+            avgTimes.cpuTime /= FRAME_AVERAGE_COUNT;
+            avgTimes.drawWriteTime /= FRAME_AVERAGE_COUNT;
+        }
+
+        ImGui::Text(std::format("Frame:        {:.3f} ms ({:.0f} fps)", avgTimes.frameTime, 1000 / avgTimes.frameTime).c_str());
+        ImGui::Text(std::format("Draw:         {:.3f} ms ({:.0f} fps)", avgTimes.gpuTime, 1000 / avgTimes.gpuTime).c_str());
+        ImGui::Text(std::format("CPU (update): {:.3f} ms", avgTimes.cpuTime).c_str());
+        ImGui::Text(std::format("Cmd-write:    {:.3f} ms", avgTimes.drawWriteTime).c_str());
+
+        ImGui::Separator();
+        // memory usage
+        ImGui::Text("VRAM Usage");
+        size_t usedGB = m_vramUsage.gpuUsed;
+        size_t totalGB = m_vramUsage.gpuAvailable;
+        std::string progress = std::format("{} / {}", storageSizeToString(usedGB), storageSizeToString(totalGB));
+        ImGui::ProgressBar(static_cast<float>(usedGB) / static_cast<float>(totalGB), ImVec2(0.0f, 0.0f), progress.c_str());
+
+        ImGui::Separator();
+
+        const auto rendererInfo = m_engine->getRenderer()->getDebugInfo();
+        ImGui::Text(std::format("Total Instances:    {}", rendererInfo.totalInstanceCount).c_str());
+        ImGui::Text(std::format("Rendered Instances: {}", rendererInfo.renderedInstanceCount).c_str());
+        ImGui::Text(std::format("Material Switches:  {}", rendererInfo.materialSwitches).c_str());
+
+        ImGui::EndTabItem();
+    }
+}
+
+void DebugWindow::renderTab() const {
+    if (ImGui::BeginTabItem("Render")) {
+        ImGui::SeparatorText("Swapchain");
+
+        using Resolution = std::pair<u32, u32>;
+
+        constexpr std::array resolutions = {
+            Resolution{2560, 1440},
+            Resolution{1920, 1080},
+            Resolution{1280, 720},
+        };
+        const auto resToString = [&resolutions](const Resolution& res) -> std::string {
+            if (std::ranges::find(resolutions, res) == resolutions.end()) {
+                return std::format("Custom ({}x{})", res.first, res.second);
+            }
+            return std::format("{}x{}", res.first, res.second);
+        };
+
+        const Resolution actualResolution = m_engine->getWindowSize();
+        if (ImGui::BeginCombo("Resolution", resToString(actualResolution).c_str())) {
+            for (const auto& resolution : resolutions) {
+                const bool isSelected = resolution == actualResolution;
+                if (ImGui::Selectable(resToString(resolution).c_str(), isSelected)) {
+                    m_engine->setWindowSize(resolution.first, resolution.second);
+                }
+                if (isSelected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        static constexpr std::array sampleOptions = { vk::SampleCountFlagBits::e1, vk::SampleCountFlagBits::e2, vk::SampleCountFlagBits::e4, vk::SampleCountFlagBits::e8 };
+        static constexpr std::array sampleNames = { "Off", "MSAAx2", "MSAAx4", "MSAAx8" };
+
+        const auto currentSamples = m_engine->getRenderer()->getSampleCount();
+        int i = 0;
+        switch (currentSamples) {
+            case vk::SampleCountFlagBits::e1:
+                i = 0;
+                break;
+            case vk::SampleCountFlagBits::e2:
+                i = 1;
+                break;
+            case vk::SampleCountFlagBits::e4:
+                i = 2;
+                break;
+            case vk::SampleCountFlagBits::e8:
+                i = 3;
+                break;
+            default:
+                i = -1;
+        }
+        if (ImGui::SliderInt("Antialiasing", &i, 0, static_cast<int>(sampleOptions.size()) - 1, sampleNames[i])) {
+            m_engine->getRenderer()->setSampleCount(sampleOptions.at(i));
+        }
+
+        bool isVsync = m_engine->getPresentMode() == vk::PresentModeKHR::eFifo;
+        if (ImGui::Checkbox("VSync", &isVsync)) {
+            m_engine->setPresentMode(isVsync ? vk::PresentModeKHR::eFifo : vk::PresentModeKHR::eImmediate);
+        }
+
+        ImGui::EndTabItem();
+    }
+}
+
+void DebugWindow::ecsTab() {
+    if (ImGui::BeginTabItem("ECS")) {
+        const auto& entities = ECS::getSystem<EntitySystem>()->get();
+
+        ImGui::SeparatorText("Bounding volumes");
+
+        if (ImGui::Button("Show all")) {
+            setFlagForAllEntities(eDisplayBoundingVolume, true);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Hide all")) {
+            setFlagForAllEntities(eDisplayBoundingVolume, false);
+        }
+
+        ImGui::SeparatorText("Highlighting");
+        const auto renderer = m_engine->getRenderer();
+        int s = renderer->getHighlightedEntity();
+        ImGui::InputInt("Current ID", &s);
+        renderer->highlightEntity(s);
+        if (ImGui::Button("Clear")) {
+            renderer->highlightEntity(ECS::NULL_ENTITY);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Jump to")) {
+            m_searchID = renderer->getHighlightedEntity();
+            m_searchUseIDs = true;
+            m_shouldFocusSearch = true;
+        }
+
+        ImGui::SeparatorText("Scene");
+
+        ImGui::Text("Total entities: %u", entities.size());
+        for (const ECS::Entity entity : entities) {
+            const auto hierarchy = ECS::getComponentOptional<HierarchyComponent>(entity);
+            if (!hierarchy || hierarchy->parent == -1) {
+                drawNodeRecursive(entity);
+            }
+        }
+
+        ImGui::EndTabItem();
+    }
+}
+
+void DebugWindow::searchTab() {
+    ImGuiTabItemFlags flags = 0;
+    if (m_shouldFocusSearch) {
+        flags |= ImGuiTabItemFlags_SetSelected;
+    }
+    if (ImGui::BeginTabItem("Search", nullptr, flags)) {
+        ImGui::Checkbox("ID Search", &m_searchUseIDs);
+        ImGui::PushID("SearchBar");
+        ImGui::PushItemWidth(-FLT_MIN); // remove label spacing
+        if (m_searchUseIDs) {
+            ImGui::InputInt("", &m_searchID);
+        }
+        else {
+            ImGui::InputTextWithHint("", "Enter name", m_searchText.data(), m_searchText.size());
+        }
+        ImGui::PopID();
+        ImGui::PopItemWidth();
+
+        ImGui::Separator();
+
+        const auto& entitySystem = ECS::getSystem<EntitySystem>();
+        if (m_searchUseIDs) {
+            if (entitySystem->contains(m_searchID)) {
+                if (m_shouldFocusSearch) {
+                    m_shouldFocusSearch = false;
+                    ImGui::SetNextItemOpen(true);
+                }
+                drawNodeRecursive(m_searchID);
+            }
+            else {
+                ImGui::Text("No results :(");
+                m_shouldFocusSearch = false;
+            }
+        }
+        else {
+            u32 count = 0;
+            for (const ECS::Entity entity : entitySystem->getEntities()) {
+                if (ECS::hasComponent<NamedComponent>(entity)) {
+                    std::string entityName = ECS::getComponent<NamedComponent>(entity).name;
+                    if (tolower(ECS::getComponent<NamedComponent>(entity).name).find(tolower(m_searchText).c_str()) != std::string::npos) {
+                        drawNodeRecursive(entity);
+                        count++;
+                        if (count >= m_searchCountLimit) {
+                            ImGui::Text("...");
+                            break;
+                        }
+                    }
+                }
+            }
+            if (count == 0) {
+                ImGui::Text("No results :(");
+            }
+        }
+
+
+        ImGui::EndTabItem();
     }
 }

@@ -28,19 +28,19 @@ void InputManager::update() {
 }
 
 bool InputManager::keyHeld(const u32 key) {
-    return get().m_heldKeys.test(packCode(key));
+    return !ImGui::GetIO().WantCaptureKeyboard && get().m_heldKeys.test(packCode(key));
 }
 
 bool InputManager::keyPressed(const u32 key) {
-    return get().m_pressedKeysThisFrame.test(packCode(key));
+    return !ImGui::GetIO().WantCaptureKeyboard && get().m_pressedKeysThisFrame.test(packCode(key));
 }
 
 bool InputManager::mouseHeld(const u32 button) {
-    return glfwGetMouseButton(get().m_window, static_cast<int>(button)) == GLFW_PRESS;
+    return !ImGui::GetIO().WantCaptureMouse && glfwGetMouseButton(get().m_window, static_cast<int>(button)) == GLFW_PRESS;
 }
 
 bool InputManager::mousePressed(const u32 button) {
-    return get().m_mouseButtonsThisFrame.test(button);
+    return !ImGui::GetIO().WantCaptureMouse && get().m_mouseButtonsThisFrame.test(button);
 }
 
 glm::vec2 InputManager::mousePos() {
