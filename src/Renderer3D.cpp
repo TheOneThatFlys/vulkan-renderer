@@ -171,7 +171,7 @@ void Renderer3D::createColourBuffer() {
 }
 
 void Renderer3D::beginRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image, const vk::ImageView& imageView) const {
-	m_engine->transitionImageLayout(image, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
+	m_engine->transitionImageLayout(commandBuffer, image, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
 	vk::RenderingAttachmentInfo colourAttachment = {
 		.imageView = imageView,
 		.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
@@ -294,7 +294,7 @@ void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
 
 void Renderer3D::endRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image) const {
 	commandBuffer.endRendering();
-	m_engine->transitionImageLayout(image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR);
+	m_engine->transitionImageLayout(commandBuffer, image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR);
 }
 
 void Renderer3D::highlightEntity(ECS::Entity entity) {
