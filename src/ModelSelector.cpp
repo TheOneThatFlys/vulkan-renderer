@@ -37,7 +37,13 @@ void ModelSelector::update(float) {
     if (!m_enabled) return;
 
     if (InputManager::mousePressed(GLFW_MOUSE_BUTTON_1)) {
-        m_selected = calculateSelectedEntity();
+        ECS::Entity newSelected = calculateSelectedEntity();
+        if (newSelected == m_selected) {
+            m_selected = ECS::NULL_ENTITY;
+        }
+        else {
+            m_selected = newSelected;
+        }
         renderer->highlightEntity(m_selected);
     }
 
