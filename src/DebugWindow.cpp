@@ -150,6 +150,27 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
             ImGui::TreePop();
         }
 
+        // Bounding Volume
+        if (ECS::hasComponent<BoundingVolume>(entity)) {
+            if (ImGui::TreeNodeEx("Bounding Volume", defaultTreeFlags)) {
+                auto& boundingVolume = ECS::getComponent<BoundingVolume>(entity);
+
+                bool showBoundingVolume = m_debugFlags.at(entity).test(eDisplayBoundingVolume);
+                ImGui::Checkbox("Show", &showBoundingVolume);
+                m_debugFlags.at(entity).set(eDisplayBoundingVolume, showBoundingVolume);
+
+                glm::vec3 t1 = boundingVolume.obb.center;
+                ImGui::DragFloat3("Center", glm::value_ptr(t1), 0, 0, 0, "%.3f", ImGuiSliderFlags_NoInput);
+
+                glm::vec3 t2 = boundingVolume.obb.extent;
+                ImGui::DragFloat3("Extent", glm::value_ptr(t2), 0, 0, 0, "%.3f", ImGuiSliderFlags_NoInput);
+
+                float t3[] = {boundingVolume.obb.rotation.x, boundingVolume.obb.rotation.y, boundingVolume.obb.rotation.z, boundingVolume.obb.rotation.w};
+                ImGui::DragFloat4("Rotation", t3, 0, 0, 0, "%.3f", ImGuiSliderFlags_NoInput);
+
+                ImGui::TreePop();
+            }
+        }
         // Camera
         if (ECS::hasComponent<ControlledCamera>(entity)) {
             if (ImGui::TreeNodeEx("Camera", defaultTreeFlags)) {
@@ -171,7 +192,6 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
                 ImGui::TreePop();
             }
         }
-
         // Hierarchy
         if (ECS::hasComponent<HierarchyComponent>(entity)) {
             if (ImGui::TreeNodeEx("Hierarchy", ImGuiTreeNodeFlags_SpanAvailWidth)) {
@@ -202,10 +222,6 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
                 const auto& model = ECS::getComponent<Model3D>(entity);
                 ImGui::Text("Mesh: <0x%X>", model.mesh);
                 ImGui::Text("Material: <0x%X>", model.material);
-
-                bool showBoundingVolume = m_debugFlags.at(entity).test(eDisplayBoundingVolume);
-                ImGui::Checkbox("Show bounding volume", &showBoundingVolume);
-                m_debugFlags.at(entity).set(eDisplayBoundingVolume, showBoundingVolume);
 
                 if (ImGui::Button("Highlight in world")) {
                     m_engine->getRenderer()->highlightEntity(entity);
@@ -239,8 +255,10 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
                 bool showMatrix = m_debugFlags.at(entity).test(eDisplayMatrix);
                 ImGui::Checkbox("Show matrix", &showMatrix);
                 m_debugFlags.at(entity).set(eDisplayMatrix, showMatrix);
-                if (showMatrix)
+                if (showMatrix) {
+                    ImGui::Separator();
                     drawMatrix(transform);
+                }
 
                 ImGui::TreePop();
             }
@@ -267,12 +285,15 @@ void DebugWindow::setFlagForAllEntities(const DebugFlags flag, const bool value)
 }
 
 void DebugWindow::drawMatrix(const glm::mat4 &matrix) {
-    for (u32 row = 0; row < 4; ++row) {
-        for (u32 col = 0; col < 4; ++col) {
-            ImGui::Text("% .3f", matrix[col][row]);
-            if (col != 3) ImGui::SameLine();
-        }
+    auto transposed = glm::transpose(matrix);
+    ImGui::PushItemWidth(-FLT_MIN);
+    for (i32 i = 0; i < 4; ++i) {
+        auto row = glm::vec4(transposed[i]);
+        ImGui::PushID(i);
+        ImGui::DragFloat4("", glm::value_ptr(row), 0, 0, 0, "%.3f", ImGuiSliderFlags_NoInput);
+        ImGui::PopID();
     }
+    ImGui::PopItemWidth();
 }
 
 void DebugWindow::performanceTab() const {
