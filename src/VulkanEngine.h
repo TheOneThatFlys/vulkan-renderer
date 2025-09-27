@@ -79,12 +79,11 @@ public:
 
 	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
 	void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const;
-	std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1) const;
-	vk::raii::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags) const;
-	void copyBufferToImage(const vk::raii::Buffer& buffer, const vk::raii::Image& image, u32 width, u32 height) const;
+	std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1, u32 mips = 1) const;
+	vk::raii::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags, u32 mips = 1) const;
 	// This function will create a new command buffer and block until completion - probably want to use the overloaded version with commandBuffer input for a non-blocking version
-	void transitionImageLayout(const vk::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
-	void transitionImageLayout(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
+	void transitionImageLayout(const vk::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, u32 mips = 1) const;
+	void transitionImageLayout(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, u32 mips = 1) const;
 
 	vk::raii::CommandBuffer beginSingleCommand() const;
 	void endSingleCommand(const vk::raii::CommandBuffer& commandBuffer) const;

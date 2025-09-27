@@ -519,7 +519,7 @@ vk::Extent2D VulkanEngine::chooseExtent(const vk::SurfaceCapabilitiesKHR& capabi
 	return extent;
 }
 
-vk::raii::ImageView VulkanEngine::createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags) const {
+vk::raii::ImageView VulkanEngine::createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags, u32 mips) const {
 	vk::ImageViewCreateInfo createInfo = {
 		.image = image,
 		.viewType = vk::ImageViewType::e2D,
@@ -527,7 +527,7 @@ vk::raii::ImageView VulkanEngine::createImageView(vk::Image image, vk::Format fo
 		.subresourceRange = {
 			.aspectMask = aspectFlags,
 			.baseMipLevel = 0,
-			.levelCount = 1,
+			.levelCount = mips,
 			.baseArrayLayer = 0,
 			.layerCount = 1
 		}
@@ -545,13 +545,13 @@ void VulkanEngine::copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize siz
 	endSingleCommand(commandBuffer);
 }
 
-void VulkanEngine::transitionImageLayout(const vk::Image &image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const {
+void VulkanEngine::transitionImageLayout(const vk::Image &image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, u32 mips) const {
 	const auto commandBuffer = beginSingleCommand();
-	transitionImageLayout(commandBuffer, image, oldLayout, newLayout);
+	transitionImageLayout(commandBuffer, image, oldLayout, newLayout, mips);
 	endSingleCommand(commandBuffer);
 }
 
-void VulkanEngine::transitionImageLayout(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const {
+void VulkanEngine::transitionImageLayout(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, u32 mips) const {
 	vk::PipelineStageFlags srcStage;
 	vk::PipelineStageFlags dstStage;
 	vk::AccessFlags srcAccess;
@@ -602,34 +602,12 @@ void VulkanEngine::transitionImageLayout(const vk::raii::CommandBuffer &commandB
 		.subresourceRange = {
 			.aspectMask = vk::ImageAspectFlagBits::eColor,
 			.baseMipLevel = 0,
-			.levelCount = 1,
+			.levelCount = mips,
 			.baseArrayLayer = 0,
 			.layerCount = 1
 		}
 	};
 	commandBuffer.pipelineBarrier(srcStage, dstStage, {}, nullptr, nullptr, barrier);
-}
-
-void VulkanEngine::copyBufferToImage(const vk::raii::Buffer &buffer, const vk::raii::Image &image, u32 width, u32 height) const {
-	vk::raii::CommandBuffer commandBuffer = beginSingleCommand();
-
-	vk::BufferImageCopy region = {
-		.bufferOffset = 0,
-		.bufferRowLength = 0,
-		.bufferImageHeight = 0,
-		.imageSubresource = {
-			.aspectMask = vk::ImageAspectFlagBits::eColor,
-			.mipLevel = 0,
-			.baseArrayLayer = 0,
-			.layerCount = 1
-		},
-		.imageOffset = {0, 0, 0},
-		.imageExtent = {width, height, 1}
-	};
-
-	commandBuffer.copyBufferToImage(buffer, image, vk::ImageLayout::eTransferDstOptimal, region);
-
-	endSingleCommand(commandBuffer);
 }
 
 std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> VulkanEngine::createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const {
@@ -655,7 +633,7 @@ std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> VulkanEngine::createBuffer(v
 	return result;
 }
 
-std::pair<vk::raii::Image, vk::raii::DeviceMemory> VulkanEngine::createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::SampleCountFlagBits samples) const {
+std::pair<vk::raii::Image, vk::raii::DeviceMemory> VulkanEngine::createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::SampleCountFlagBits samples, u32 mips) const {
 	std::pair<vk::raii::Image, vk::raii::DeviceMemory> result = {nullptr, nullptr};
 
 	vk::ImageCreateInfo imageInfo = {
@@ -666,7 +644,7 @@ std::pair<vk::raii::Image, vk::raii::DeviceMemory> VulkanEngine::createImage(u32
 			.height = height,
 			.depth = 1
 		},
-		.mipLevels = 1,
+		.mipLevels = mips,
 		.arrayLayers = 1,
 		.samples = samples,
 		.tiling = tiling,
@@ -687,7 +665,7 @@ std::pair<vk::raii::Image, vk::raii::DeviceMemory> VulkanEngine::createImage(u32
 	result.first.bindMemory(result.second, 0);
 
 	return result;
-;}
+}
 
 u32 VulkanEngine::findMemoryType(u32 typeFilter, vk::MemoryPropertyFlags properties) const {
 	auto const memProperties = m_physicalDevice.getMemoryProperties();

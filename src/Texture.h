@@ -10,6 +10,9 @@ struct SamplerInfo {
     vk::SamplerAddressMode wrapU = vk::SamplerAddressMode::eRepeat;
     vk::SamplerAddressMode wrapV = vk::SamplerAddressMode::eRepeat;
     vk::SamplerAddressMode wrapW = vk::SamplerAddressMode::eRepeat;
+
+    bool useMipmaps = false;
+    vk::SamplerMipmapMode mipmapMode = vk::SamplerMipmapMode::eNearest;
 };
 
 class Texture {
@@ -27,8 +30,10 @@ public:
     const vk::raii::ImageView& getImageView() const;
     const vk::raii::Sampler& getSampler() const;
 private:
+    void generateMipmaps(const VulkanEngine* engine);
     vk::raii::Image m_image = nullptr;
     vk::raii::DeviceMemory m_imageMemory = nullptr;
     vk::raii::ImageView m_imageView = nullptr;
     vk::raii::Sampler m_sampler = nullptr;
+    u32 m_width, m_height, m_mips;
 };

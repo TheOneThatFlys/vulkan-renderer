@@ -454,8 +454,10 @@ void DebugWindow::searchTab() {
     }
     if (ImGui::BeginTabItem("Search", nullptr, flags)) {
         ImGui::Checkbox("ID Search", &m_searchUseIDs);
+
         ImGui::PushID("SearchBar");
         ImGui::PushItemWidth(-FLT_MIN); // remove label spacing
+
         if (m_searchUseIDs) {
             ImGui::InputInt("", &m_searchID);
         }
@@ -487,14 +489,15 @@ void DebugWindow::searchTab() {
                 if (ECS::hasComponent<NamedComponent>(entity)) {
                     std::string entityName = ECS::getComponent<NamedComponent>(entity).name;
                     if (tolower(ECS::getComponent<NamedComponent>(entity).name).find(tolower(m_searchText).c_str()) != std::string::npos) {
-                        drawNodeRecursive(entity);
-                        count++;
-                        if (count >= m_searchCountLimit) {
-                            ImGui::Text("...");
-                            break;
+                        if (count < m_searchCountLimit) {
+                            drawNodeRecursive(entity);
                         }
+                        count++;
                     }
                 }
+            }
+            if (count >= m_searchCountLimit) {
+                ImGui::Text(std::format("... ({} more items)", count - m_searchCountLimit).c_str());
             }
             if (count == 0) {
                 ImGui::Text("No results :(");

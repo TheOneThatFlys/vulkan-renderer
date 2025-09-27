@@ -71,8 +71,8 @@ ECS::Entity ModelSelector::calculateSelectedEntity() {
     auto iMousePosition = glm::ivec2(mousePosition);
     const auto [winWidth, winHeight] = m_engine->getWindowSize();
 
-    m_engine->transitionImageLayout(m_colourImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
     auto commandBuffer = m_engine->beginSingleCommand();
+    m_engine->transitionImageLayout(commandBuffer, m_colourImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
 
     const vk::RenderingAttachmentInfo colourAttachment = {
         .imageView = m_colourImageView,

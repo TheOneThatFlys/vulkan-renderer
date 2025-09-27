@@ -78,15 +78,26 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
 
             auto resolveFilter = [&](const i32 filterType) -> vk::Filter {
                 if (filterType == -1) return vk::Filter::eNearest;
-                if (!g_filterModeMap.contains(filterType)) {
-                    // Logger::warn("Unsupported filter type: {}", filterType);
+                if (filterType == TINYGLTF_TEXTURE_FILTER_LINEAR || filterType == TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST || filterType == TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR) {
+                    return vk::Filter::eLinear;
+                }
+                if (filterType == TINYGLTF_TEXTURE_FILTER_NEAREST || filterType == TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST || filterType == TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR) {
                     return vk::Filter::eNearest;
                 }
-                return g_filterModeMap.at(filterType);
+                Logger::warn("Unrecognised filter type: {}", filterType);
+                return vk::Filter::eNearest;
             };
-
             samplerInfo.minFilter = resolveFilter(sampler.minFilter);
             samplerInfo.magFilter = resolveFilter(sampler.magFilter);
+
+            if (sampler.minFilter == TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR || sampler.minFilter == TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR) {
+                samplerInfo.useMipmaps = true;
+                samplerInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
+            }
+            else if (sampler.minFilter == TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST || sampler.minFilter == TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST) {
+                samplerInfo.useMipmaps = true;
+                samplerInfo.mipmapMode = vk::SamplerMipmapMode::eNearest;
+            }
 
             m_textures.push_back(std::make_unique<Texture>(m_engine, source.image.data(), source.width, source.height, format, samplerInfo));
             return m_textures.back().get();
