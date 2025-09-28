@@ -16,11 +16,6 @@ static std::unordered_map<u32, vk::SamplerAddressMode> g_wrapModeMap = {
     {TINYGLTF_TEXTURE_WRAP_MIRRORED_REPEAT, vk::SamplerAddressMode::eMirroredRepeat}
 };
 
-static std::unordered_map<u32, vk::Filter> g_filterModeMap = {
-    {TINYGLTF_TEXTURE_FILTER_LINEAR, vk::Filter::eLinear},
-    {TINYGLTF_TEXTURE_FILTER_NEAREST, vk::Filter::eNearest},
-};
-
 AssetManager::AssetManager(VulkanEngine* engine) : m_engine(engine) {
     stbi_set_flip_vertically_on_load(true);
 

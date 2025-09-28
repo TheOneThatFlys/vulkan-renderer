@@ -545,43 +545,43 @@ void VulkanEngine::copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize siz
 	endSingleCommand(commandBuffer);
 }
 
-void VulkanEngine::transitionImageLayout(const vk::Image &image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, u32 mips) const {
+void VulkanEngine::transitionImageLayout(const ImageTransitionInfo& info) const {
 	const auto commandBuffer = beginSingleCommand();
-	transitionImageLayout(commandBuffer, image, oldLayout, newLayout, mips);
+	transitionImageLayout(commandBuffer, info);
 	endSingleCommand(commandBuffer);
 }
 
-void VulkanEngine::transitionImageLayout(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, u32 mips) const {
+void VulkanEngine::transitionImageLayout(const vk::raii::CommandBuffer &commandBuffer, const ImageTransitionInfo& info) const {
 	vk::PipelineStageFlags srcStage;
 	vk::PipelineStageFlags dstStage;
 	vk::AccessFlags srcAccess;
 	vk::AccessFlags dstAccess;
 
-	if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eTransferDstOptimal) {
+	if (info.oldLayout == vk::ImageLayout::eUndefined && info.newLayout == vk::ImageLayout::eTransferDstOptimal) {
 		srcAccess = {};
 		dstAccess = vk::AccessFlagBits::eTransferWrite;
 		srcStage = vk::PipelineStageFlagBits::eTopOfPipe;
 		dstStage = vk::PipelineStageFlagBits::eTransfer;
 	}
-	else if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+	else if (info.oldLayout == vk::ImageLayout::eTransferDstOptimal && info.newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
 		srcAccess = vk::AccessFlagBits::eTransferWrite;
 		dstAccess = vk::AccessFlagBits::eShaderRead;
 		srcStage = vk::PipelineStageFlagBits::eTransfer;
 		dstStage = vk::PipelineStageFlagBits::eFragmentShader;
 	}
-	else if (oldLayout == vk::ImageLayout::eColorAttachmentOptimal && newLayout == vk::ImageLayout::ePresentSrcKHR) {
+	else if (info.oldLayout == vk::ImageLayout::eColorAttachmentOptimal && info.newLayout == vk::ImageLayout::ePresentSrcKHR) {
 		srcAccess = vk::AccessFlagBits::eColorAttachmentWrite;
 		dstAccess = {};
 		srcStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 		dstStage = vk::PipelineStageFlagBits::eBottomOfPipe;
 	}
-	else if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eColorAttachmentOptimal) {
+	else if (info.oldLayout == vk::ImageLayout::eUndefined && info.newLayout == vk::ImageLayout::eColorAttachmentOptimal) {
 		srcAccess = {};
 		dstAccess = vk::AccessFlagBits::eColorAttachmentWrite;
 		srcStage = vk::PipelineStageFlagBits::eTopOfPipe;
 		dstStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 	}
-	else if (oldLayout == vk::ImageLayout::eColorAttachmentOptimal && newLayout == vk::ImageLayout::eTransferSrcOptimal) {
+	else if (info.oldLayout == vk::ImageLayout::eColorAttachmentOptimal && info.newLayout == vk::ImageLayout::eTransferSrcOptimal) {
 		srcAccess = vk::AccessFlagBits::eColorAttachmentWrite;
 		dstAccess = vk::AccessFlagBits::eTransferRead;
 		srcStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
@@ -594,17 +594,17 @@ void VulkanEngine::transitionImageLayout(const vk::raii::CommandBuffer &commandB
 	vk::ImageMemoryBarrier barrier = {
 		.srcAccessMask = srcAccess,
 		.dstAccessMask = dstAccess,
-		.oldLayout = oldLayout,
-		.newLayout = newLayout,
+		.oldLayout = info.oldLayout,
+		.newLayout = info.newLayout,
 		.srcQueueFamilyIndex = vk::QueueFamilyIgnored,
 		.dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-		.image = image,
+		.image = info.image,
 		.subresourceRange = {
 			.aspectMask = vk::ImageAspectFlagBits::eColor,
 			.baseMipLevel = 0,
-			.levelCount = mips,
+			.levelCount = info.mips,
 			.baseArrayLayer = 0,
-			.layerCount = 1
+			.layerCount = info.arrayLayers
 		}
 	};
 	commandBuffer.pipelineBarrier(srcStage, dstStage, {}, nullptr, nullptr, barrier);
@@ -633,23 +633,24 @@ std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> VulkanEngine::createBuffer(v
 	return result;
 }
 
-std::pair<vk::raii::Image, vk::raii::DeviceMemory> VulkanEngine::createImage(u32 width, u32 height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::SampleCountFlagBits samples, u32 mips) const {
+std::pair<vk::raii::Image, vk::raii::DeviceMemory> VulkanEngine::createImage(const ImageCreateInfo& info) const {
 	std::pair<vk::raii::Image, vk::raii::DeviceMemory> result = {nullptr, nullptr};
 
 	vk::ImageCreateInfo imageInfo = {
-		.imageType = vk::ImageType::e2D,
-		.format = format,
+		.flags = info.flags,
+		.imageType = info.imageType,
+		.format = info.format,
 		.extent = {
-			.width = width,
-			.height = height,
-			.depth = 1
+			.width = info.width,
+			.height = info.height,
+			.depth = info.depth
 		},
-		.mipLevels = mips,
-		.arrayLayers = 1,
-		.samples = samples,
-		.tiling = tiling,
-		.usage = usage,
-		.sharingMode = vk::SharingMode::eExclusive,
+		.mipLevels = info.mips,
+		.arrayLayers = info.arrayLayers,
+		.samples = info.samples,
+		.tiling = info.tiling,
+		.usage = info.usage,
+		.sharingMode = info.sharingMode,
 		.initialLayout = vk::ImageLayout::eUndefined
 	};
 
@@ -658,7 +659,7 @@ std::pair<vk::raii::Image, vk::raii::DeviceMemory> VulkanEngine::createImage(u32
 	vk::MemoryRequirements memoryRequirements = result.first.getMemoryRequirements();
 	vk::MemoryAllocateInfo allocInfo = {
 		.allocationSize = memoryRequirements.size,
-		.memoryTypeIndex = findMemoryType(memoryRequirements.memoryTypeBits, properties)
+		.memoryTypeIndex = findMemoryType(memoryRequirements.memoryTypeBits, info.properties)
 	};
 
 	result.second = m_device.allocateMemory(allocInfo);

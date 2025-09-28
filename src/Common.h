@@ -5,6 +5,8 @@
 #include <array>
 #include <fstream>
 
+#include <vulkan/vulkan.hpp>
+
 #include "Logger.h"
 
 using u8 = std::uint8_t;
@@ -85,4 +87,26 @@ class IUpdatable {
 public:
     virtual ~IUpdatable() = default;
     virtual void update(float deltaTime) = 0;
+};
+
+struct ImageCreateInfo {
+    u32 width, height;
+    u32 depth = 1;
+    vk::Format format;
+    vk::ImageUsageFlags usage;
+    vk::MemoryPropertyFlags properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
+    vk::ImageType imageType = vk::ImageType::e2D;
+    u32 mips = 1;
+    u32 arrayLayers = 1;
+    vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1;
+    vk::ImageTiling tiling = vk::ImageTiling::eOptimal;
+    vk::SharingMode sharingMode = vk::SharingMode::eExclusive;
+    vk::ImageCreateFlags flags = {};
+};
+
+struct ImageTransitionInfo {
+    vk::Image image;
+    vk::ImageLayout oldLayout, newLayout;
+    u32 mips = 1;
+    u32 arrayLayers = 1;
 };

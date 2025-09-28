@@ -72,7 +72,7 @@ ECS::Entity ModelSelector::calculateSelectedEntity() {
     const auto [winWidth, winHeight] = m_engine->getWindowSize();
 
     auto commandBuffer = m_engine->beginSingleCommand();
-    m_engine->transitionImageLayout(commandBuffer, m_colourImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
+    m_engine->transitionImageLayout(commandBuffer, {m_colourImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal});
 
     const vk::RenderingAttachmentInfo colourAttachment = {
         .imageView = m_colourImageView,
@@ -148,7 +148,7 @@ ECS::Entity ModelSelector::calculateSelectedEntity() {
 
     commandBuffer.endRendering();
 
-    m_engine->transitionImageLayout(commandBuffer, m_colourImage, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal);
+    m_engine->transitionImageLayout(commandBuffer, {m_colourImage, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal});
     const vk::BufferImageCopy region = {
         .bufferOffset = 0,
         .bufferRowLength = 0,
@@ -174,24 +174,20 @@ ECS::Entity ModelSelector::calculateSelectedEntity() {
 }
 
 void ModelSelector::createAttachments() {
-    std::tie(m_colourImage, m_colourImageMemory) = m_engine->createImage(
-            m_extent.width,
-            m_extent.height,
-            getTextureFormat(),
-            vk::ImageTiling::eOptimal,
-            vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc,
-            vk::MemoryPropertyFlagBits::eDeviceLocal
-        );
+    std::tie(m_colourImage, m_colourImageMemory) = m_engine->createImage({
+		.width = m_extent.width,
+		.height = m_extent.height,
+		.format = getTextureFormat(),
+		.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc,
+	});
     m_colourImageView = m_engine->createImageView(m_colourImage, getTextureFormat(), vk::ImageAspectFlagBits::eColor);
 
-    std::tie(m_depthImage, m_depthImageMemory) = m_engine->createImage(
-        m_extent.width,
-        m_extent.height,
-        m_engine->getDepthFormat(),
-        vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eDepthStencilAttachment,
-        vk::MemoryPropertyFlagBits::eDeviceLocal
-    );
+    std::tie(m_depthImage,m_depthImageMemory) = m_engine->createImage({
+        .width = m_extent.width,
+        .height = m_extent.height,
+        .format = m_engine->getDepthFormat(),
+        .usage = vk::ImageUsageFlagBits::eDepthStencilAttachment
+    });
     m_depthImageView = m_engine->createImageView(m_depthImage, m_engine->getDepthFormat(), vk::ImageAspectFlagBits::eDepth);
 
     std::tie(m_outputBuffer, m_outputBufferMemory) = m_engine->createBuffer(m_colourImage.getMemoryRequirements().size, vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);

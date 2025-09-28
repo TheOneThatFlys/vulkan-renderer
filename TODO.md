@@ -2,14 +2,13 @@
 
 ---
 
+- Separate images into class somehow (creation + transition)
 - Change ECS Entity to class
 - Move forward decl. of VulkanEngine into Common.h
 - Change pipeline layout to shared pointer
 - De-systemise a bit
 - Fix debug window probably crashing if entities are removed and all ECS ids are cycled round
 - Shadow mapping
-- Mipmaps
-- AA
 - Skybox
 - ssao?
 - IBL D:

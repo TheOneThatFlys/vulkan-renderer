@@ -144,34 +144,31 @@ void Renderer3D::createPipelines() {
 }
 
 void Renderer3D::createDepthBuffer() {
-	std::tie(m_depthBuffer, m_depthBufferMemory) = m_engine->createImage(
-		m_extent.width,
-		m_extent.height,
-		m_engine->getDepthFormat(),
-		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eDepthStencilAttachment,
-		vk::MemoryPropertyFlagBits::eDeviceLocal,
-		m_samples
-	);
+	std::tie(m_depthBuffer, m_depthBufferMemory) = m_engine->createImage({
+		.width = m_extent.width,
+		.height = m_extent.height,
+		.format = m_engine->getDepthFormat(),
+		.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
+		.samples = m_samples
+	});
 
 	m_depthBufferImage = m_engine->createImageView(m_depthBuffer, m_engine->getDepthFormat(), vk::ImageAspectFlagBits::eDepth);
 }
 
 void Renderer3D::createColourBuffer() {
-	std::tie(m_colourImage, m_colourImageMemory) = m_engine->createImage(
-		m_extent.width,
-		m_extent.height,
-		m_engine->getSwapColourFormat(),
-		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment,
-		vk::MemoryPropertyFlagBits::eDeviceLocal,
-		m_samples
-	);
+	std::tie(m_colourImage, m_colourImageMemory) = m_engine->createImage({
+		.width = m_extent.width,
+		.height = m_extent.height,
+		.format = m_engine->getSwapColourFormat(),
+		.usage = vk::ImageUsageFlagBits::eColorAttachment,
+		.samples = m_samples
+	});
+
 	m_colourImageView = m_engine->createImageView(m_colourImage, m_engine->getSwapColourFormat(), vk::ImageAspectFlagBits::eColor);
 }
 
 void Renderer3D::beginRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image, const vk::ImageView& imageView) const {
-	m_engine->transitionImageLayout(commandBuffer, image, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
+	m_engine->transitionImageLayout(commandBuffer, {image, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal});
 	vk::RenderingAttachmentInfo colourAttachment = {
 		.imageView = imageView,
 		.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
@@ -294,7 +291,7 @@ void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
 
 void Renderer3D::endRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image) const {
 	commandBuffer.endRendering();
-	m_engine->transitionImageLayout(commandBuffer, image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR);
+	m_engine->transitionImageLayout(commandBuffer, {image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR});
 }
 
 void Renderer3D::highlightEntity(ECS::Entity entity) {

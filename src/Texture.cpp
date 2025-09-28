@@ -19,19 +19,17 @@ Texture::Texture(const VulkanEngine *engine, const unsigned char *pixels, u32 wi
         m_mips = static_cast<u32>(std::floor(std::log2(std::max(width, height)))) + 1;
     }
 
-    std::tie(m_image, m_imageMemory) = engine->createImage(
-        width, height,
-        format,
-        vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc,
-        vk::MemoryPropertyFlagBits::eDeviceLocal,
-        vk::SampleCountFlagBits::e1,
-        m_mips
-    );
+    std::tie(m_image, m_imageMemory) = engine->createImage({
+        .width = width,
+        .height = height,
+        .format = format,
+        .usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc,
+        .mips = m_mips
+    });
 
     // transition image layout for optimal copying
     const auto commandBuffer = engine->beginSingleCommand();
-    engine->transitionImageLayout(commandBuffer, m_image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, m_mips);
+    engine->transitionImageLayout(commandBuffer, {m_image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, m_mips});
     // copy staging buffer data to image
     vk::BufferImageCopy copyRegion = {
         .bufferOffset = 0,

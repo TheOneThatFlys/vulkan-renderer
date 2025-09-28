@@ -9,6 +9,7 @@
 #include "Mesh.h"
 #include "Texture.h"
 #include "Material.h"
+#include "Skybox.h"
 
 class VulkanEngine;
 
@@ -16,6 +17,7 @@ class AssetManager {
 public:
     explicit AssetManager(VulkanEngine* engine);
     ECS::Entity loadGLB(const std::string& path);
+    Skybox loadSkybox(const std::string& path);
 private:
     std::unique_ptr<Mesh<>> loadMesh(const tinygltf::Model &ctx, const tinygltf::Mesh &mesh);
     void loadImage(std::string path);
