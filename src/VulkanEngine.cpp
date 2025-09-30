@@ -117,6 +117,10 @@ Renderer3D* VulkanEngine::getRenderer() const {
 	return m_renderer;
 }
 
+AssetManager * VulkanEngine::getAssetManager() const {
+	return m_assetManager.get();
+}
+
 void VulkanEngine::setPresentMode(vk::PresentModeKHR mode) {
 	m_presentMode = mode;
 	queueSwapRecreation();
@@ -234,6 +238,8 @@ void VulkanEngine::createScene() const {
 	Transform::updateTransform(sphere);
 
 	m_assetManager->loadGLB("assets/cs_office.glb");
+
+	m_renderer->setSkybox(m_assetManager->loadSkybox("assets/skybox"));
 }
 
 void VulkanEngine::createInstance() {

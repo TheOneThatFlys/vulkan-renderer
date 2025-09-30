@@ -9,6 +9,8 @@
 #include "BoundingVolumeRenderer.h"
 #include "ModelSelector.h"
 
+class Skybox;
+
 struct FrameUniforms {
     glm::mat4 view;
     glm::mat4 projection;
@@ -53,6 +55,8 @@ public:
     void setSampleCount(vk::SampleCountFlagBits samples);
     vk::SampleCountFlagBits getSampleCount() const;
 
+    void setSkybox(const std::shared_ptr<Skybox>& skybox);
+
     void highlightEntity(ECS::Entity entity);
     ECS::Entity getHighlightedEntity() const;
 
@@ -65,6 +69,7 @@ private:
     void setDynamicParameters(const vk::raii::CommandBuffer &commandBuffer) const;
     void setFrameUniforms(const vk::raii::CommandBuffer &commandBuffer);
     void drawModels(const vk::raii::CommandBuffer &commandBuffer);
+    void drawSkybox(const vk::raii::CommandBuffer &commandBuffer);
     void endRender(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image) const;
 
     VulkanEngine* m_engine;
@@ -72,6 +77,7 @@ private:
 
     std::unique_ptr<Pipeline> m_pipeline = nullptr;
     std::unique_ptr<Pipeline> m_xrayPipeline = nullptr;
+    std::unique_ptr<Pipeline> m_skyboxPipeline = nullptr;
 
     vk::raii::Image m_depthBuffer = nullptr;
     vk::raii::DeviceMemory m_depthBufferMemory = nullptr;
@@ -89,6 +95,9 @@ private:
 
     ECS::Entity m_camera;
 
+    std::shared_ptr<Skybox> m_skybox;
+    vk::raii::DescriptorSet m_skyboxDescriptor = nullptr;
+
     vk::raii::DescriptorSet m_frameDescriptor = nullptr;
     vk::raii::DescriptorSet m_modelDescriptor = nullptr;
 
@@ -103,7 +112,6 @@ private:
 
     std::unordered_map<Material*, std::vector<ECS::Entity>> m_sortedEntities;
     std::vector<ECS::Entity> m_renderedEntities;
-
 
     ECS::Entity m_highlightedEntity = -1;
 };

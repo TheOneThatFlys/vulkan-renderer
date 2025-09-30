@@ -16,6 +16,7 @@ public:
         Builder& addDynamicState(vk::DynamicState state);
         Builder& setPolygonMode(vk::PolygonMode polygonMode);
         Builder& setTopology(vk::PrimitiveTopology topology);
+        Builder& setDepthCompareOp(vk::CompareOp compareOp);
         Builder& disableDepthTest();
         Builder& setSamples(vk::SampleCountFlagBits samples);
         Builder& addAttachment(vk::Format format);

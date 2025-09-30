@@ -95,6 +95,11 @@ Pipeline::Builder & Pipeline::Builder::setTopology(const vk::PrimitiveTopology t
 	return *this;
 }
 
+Pipeline::Builder & Pipeline::Builder::setDepthCompareOp(const vk::CompareOp compareOp) {
+	m_depthStencil.depthCompareOp = compareOp;
+	return *this;
+}
+
 Pipeline::Builder & Pipeline::Builder::disableDepthTest() {
 	m_depthStencil.depthTestEnable = vk::False;
 	m_depthStencil.depthWriteEnable = vk::False;

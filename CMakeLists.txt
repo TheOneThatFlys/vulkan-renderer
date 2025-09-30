@@ -45,6 +45,8 @@ add_executable (VulkanRenderer
         src/EntitySystem.h
         src/ModelSelector.cpp
         src/ModelSelector.h
+        src/Skybox.cpp
+        src/Skybox.h
 )
 
 target_compile_definitions(VulkanRenderer PUBLIC
@@ -103,6 +105,8 @@ set(SHADER_FILES
         xray.frag
         id.vert
         id.frag
+        skybox.vert
+        skybox.frag
 )
 add_shaders(Shaders ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders ${SHADER_FILES})
 add_dependencies(VulkanRenderer Shaders)

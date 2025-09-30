@@ -17,7 +17,9 @@ class AssetManager {
 public:
     explicit AssetManager(VulkanEngine* engine);
     ECS::Entity loadGLB(const std::string& path);
-    Skybox loadSkybox(const std::string& path);
+    std::unique_ptr<Skybox> loadSkybox(const std::string& folderPath, const char* ext = "png");
+
+    Mesh<>* getUnitCube() const;
 private:
     std::unique_ptr<Mesh<>> loadMesh(const tinygltf::Model &ctx, const tinygltf::Mesh &mesh);
     void loadImage(std::string path);
@@ -34,4 +36,5 @@ private:
 
     Texture* m_pureWhite1x1Texture;
     Texture* m_normal1x1Texture;
+    Mesh<>* m_unitCubeMesh;
 };

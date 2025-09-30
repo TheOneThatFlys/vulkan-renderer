@@ -4,8 +4,10 @@
 
 #include <glm/gtc/matrix_inverse.hpp>
 
+#include "AssetManager.h"
 #include "Components.h"
 #include "DebugWindow.h"
+#include "Skybox.h"
 
 Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
     : m_engine(engine)
@@ -22,8 +24,10 @@ Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
 
 	m_frameDescriptor = m_pipeline->createDescriptorSet(FRAME_SET_NUMBER);
 	m_modelDescriptor = m_pipeline->createDescriptorSet(MODEL_SET_NUMBER);
+	m_skyboxDescriptor = m_skyboxPipeline->createDescriptorSet(FRAME_SET_NUMBER);
 
     m_frameUniforms.addToSet(m_frameDescriptor);
+	m_frameUniforms.addToSet(m_skyboxDescriptor);
     m_fragFrameUniforms.addToSet(m_frameDescriptor);
     m_modelUniforms.addToSet(m_modelDescriptor);
 
@@ -40,6 +44,7 @@ void Renderer3D::render(const vk::raii::CommandBuffer &commandBuffer, const vk::
 	setDynamicParameters(commandBuffer);
 	setFrameUniforms(commandBuffer);
 	drawModels(commandBuffer);
+	drawSkybox(commandBuffer);
 	m_boundingVolumeRenderer->draw(commandBuffer);
 	m_engine->getDebugWindow()->draw(commandBuffer);
 	endRender(commandBuffer, image);
@@ -109,6 +114,11 @@ vk::SampleCountFlagBits Renderer3D::getSampleCount() const {
 	return m_samples;
 }
 
+void Renderer3D::setSkybox(const std::shared_ptr<Skybox> &skybox) {
+	m_skybox = skybox;
+	m_skybox->addToSet(m_skyboxDescriptor, 1);
+}
+
 void Renderer3D::createPipelines() {
 	m_pipeline = Pipeline::Builder(m_engine)
 		.addShaderStage("shaders/model.vert.spv")
@@ -141,6 +151,16 @@ void Renderer3D::createPipelines() {
         .addBinding(0, 1, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment) // unused
 		.create();
 
+	m_skyboxPipeline = Pipeline::Builder(m_engine)
+		.addShaderStage("shaders/skybox.vert.spv")
+		.addShaderStage("shaders/skybox.frag.spv")
+		.setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
+		.addAttachment(m_engine->getSwapColourFormat())
+		.setSamples(m_samples)
+		.setDepthCompareOp(vk::CompareOp::eLessOrEqual)
+		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex)
+		.addBinding(0, 1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment)
+		.create();
 }
 
 void Renderer3D::createDepthBuffer() {
@@ -287,6 +307,14 @@ void Renderer3D::drawModels(const vk::raii::CommandBuffer& commandBuffer) {
 		commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_xrayPipeline->getLayout(), MODEL_SET_NUMBER, {*m_modelDescriptor}, {highlightedIndex * m_modelUniforms.getItemSize()});
 		ECS::getComponent<Model3D>(m_highlightedEntity).mesh->draw(commandBuffer);
 	}
+}
+
+void Renderer3D::drawSkybox(const vk::raii::CommandBuffer &commandBuffer) {
+	if (m_skybox == nullptr) return;
+
+	commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_skyboxPipeline->getPipeline());
+	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_skyboxPipeline->getLayout(), FRAME_SET_NUMBER, {m_skyboxDescriptor}, nullptr);
+	m_engine->getAssetManager()->getUnitCube()->draw(commandBuffer);
 }
 
 void Renderer3D::endRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image) const {

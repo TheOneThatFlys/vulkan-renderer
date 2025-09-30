@@ -27,6 +27,59 @@ AssetManager::AssetManager(VulkanEngine* engine) : m_engine(engine) {
     std::array<u8, 4> normalPixels = {128, 128, 255, 0};
     m_textures.push_back(std::make_unique<Texture>(engine, normalPixels.data(), 1, 1, vk::Format::eR8G8B8A8Unorm));
     m_normal1x1Texture = m_textures.back().get();
+
+    {
+        std::vector<Vertex> vertices = {
+            {{-1.0f,  1.0f, -1.0f}},
+            {{-1.0f, -1.0f, -1.0f}},
+            {{ 1.0f, -1.0f, -1.0f}},
+            {{ 1.0f, -1.0f, -1.0f}},
+            {{ 1.0f,  1.0f, -1.0f}},
+            {{-1.0f,  1.0f, -1.0f}},
+
+            {{-1.0f, -1.0f,  1.0f}},
+            {{-1.0f, -1.0f, -1.0f}},
+            {{-1.0f,  1.0f, -1.0f}},
+            {{-1.0f,  1.0f, -1.0f}},
+            {{-1.0f,  1.0f,  1.0f}},
+            {{-1.0f, -1.0f,  1.0f}},
+
+            {{ 1.0f, -1.0f, -1.0f}},
+            {{ 1.0f, -1.0f,  1.0f}},
+            {{ 1.0f,  1.0f,  1.0f}},
+            {{ 1.0f,  1.0f,  1.0f}},
+            {{ 1.0f,  1.0f, -1.0f}},
+            {{ 1.0f, -1.0f, -1.0f}},
+
+            {{-1.0f, -1.0f,  1.0f}},
+            {{-1.0f,  1.0f,  1.0f}},
+            {{ 1.0f,  1.0f,  1.0f}},
+            {{ 1.0f,  1.0f,  1.0f}},
+            {{ 1.0f, -1.0f,  1.0f}},
+            {{-1.0f, -1.0f,  1.0f}},
+
+            {{-1.0f,  1.0f, -1.0f}},
+            {{ 1.0f,  1.0f, -1.0f}},
+            {{ 1.0f,  1.0f,  1.0f}},
+            {{ 1.0f,  1.0f,  1.0f}},
+            {{-1.0f,  1.0f,  1.0f}},
+            {{-1.0f,  1.0f, -1.0f}},
+
+            {{-1.0f, -1.0f, -1.0f}},
+            {{-1.0f, -1.0f,  1.0f}},
+            {{ 1.0f, -1.0f, -1.0f}},
+            {{ 1.0f, -1.0f, -1.0f}},
+            {{-1.0f, -1.0f,  1.0f}},
+            {{ 1.0f, -1.0f,  1.0}},
+        };
+
+        std::vector<u32> indexes;
+        for (u32 i = 0; i < vertices.size(); ++i) {
+            indexes.push_back(i);
+        }
+        m_meshes.push_back(std::make_unique<Mesh<>>(engine, vertices, indexes));
+        m_unitCubeMesh = m_meshes.back().get();
+    }
 }
 
 // Load glb file and return the root entity
@@ -183,6 +236,26 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
     Logger::info("Loaded '{}' in {} ms [read = {} ms]", path, std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime).count(), std::chrono::duration_cast<std::chrono::milliseconds>(loadTime-startTime).count());
 
     return root;
+}
+
+std::unique_ptr<Skybox> AssetManager::loadSkybox(const std::string &folderPath, const char* ext) {
+    static constexpr std::array names = { "px", "nx", "py", "ny", "pz", "nz" };
+    std::array<unsigned char*, 6> data = {};
+    i32 width, height, channels;
+    for (u32 i = 0; i < 6; ++i) {
+        data[i] = stbi_load((folderPath + "/" + names[i] + "." + ext).c_str(), &width, &height, &channels, STBI_rgb_alpha);
+        stbi__vertical_flip(data[i], width, height, 4); // probably not supposed to use this but for some reason stbi load on flip refuses to work
+        if (data[i] == nullptr) throw std::runtime_error(std::format("Unable to load image at {} ({})", folderPath, stbi_failure_reason()));
+    }
+    auto skybox = std::make_unique<Skybox>(m_engine, data, width, height);
+    for (u32 i = 0; i < 6; ++i) {
+        stbi_image_free(data[i]);
+    }
+    return std::move(skybox);
+}
+
+Mesh<> * AssetManager::getUnitCube() const {
+    return m_unitCubeMesh;
 }
 
 std::unique_ptr<Mesh<>> AssetManager::loadMesh(const tinygltf::Model& ctx, const tinygltf::Mesh &mesh) {
