@@ -37,6 +37,8 @@ layout(std140, set = 0, binding = 1) uniform FrameData {
     vec3 cameraPosition;
     PointLight lights[MAX_LIGHTS];
     int nLights;
+    float far;
+    float fog;
 };
 
 vec3 fresnelSchlick(float cosTheta, vec3 F0, float roughness)
@@ -101,7 +103,6 @@ vec3 pointLightContribution(PointLight pLight, BRDFParams p)
 void main() {
     vec4 albedoAlpha = texture(baseColourTexture, UV).rgba;
     vec3 albedo = albedoAlpha.rgb;
-    if (albedoAlpha.a < 0.5) discard;
     vec2 metallicRoughness = texture(metallicRoughnessTexture, UV).rg;
     float ao = texture(aoTexture, UV).r;
     vec3 normal = texture(normalTexture, UV).rgb;
@@ -128,5 +129,10 @@ void main() {
 
     vec3 ambient = vec3(1.0) * albedo * ao;
     vec3 result = ambient + Lo;
-    OutColor = vec4(pow(result, vec3(1/2.2)), 1.0);
+
+    float distanceToFrag = length(FragPos - cameraPosition);
+    float fogFactor = (distanceToFrag - (far - fog)) / fog;
+    fogFactor = 1 - clamp(fogFactor, 0, 1);
+
+    OutColor = vec4(pow(result, vec3(1/2.2)), fogFactor);
 }

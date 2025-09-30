@@ -42,9 +42,9 @@ Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
 void Renderer3D::render(const vk::raii::CommandBuffer &commandBuffer, const vk::Image& image, const vk::ImageView& imageView) {
 	beginRender(commandBuffer, image, imageView);
 	setDynamicParameters(commandBuffer);
+	drawSkybox(commandBuffer);
 	setFrameUniforms(commandBuffer);
 	drawModels(commandBuffer);
-	drawSkybox(commandBuffer);
 	m_boundingVolumeRenderer->draw(commandBuffer);
 	m_engine->getDebugWindow()->draw(commandBuffer);
 	endRender(commandBuffer, image);
@@ -126,6 +126,7 @@ void Renderer3D::createPipelines() {
         .setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
 		.addAttachment(m_engine->getSwapColourFormat())
 		.setSamples(m_samples)
+		.enableAlphaBlending()
 
         .addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
         .addBinding(0, 1, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment) // frame data - lights & camera
@@ -157,7 +158,7 @@ void Renderer3D::createPipelines() {
 		.setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
 		.addAttachment(m_engine->getSwapColourFormat())
 		.setSamples(m_samples)
-		.setDepthCompareOp(vk::CompareOp::eLessOrEqual)
+		.disableDepthTest()
 		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex)
 		.addBinding(0, 1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment)
 		.create();
@@ -245,6 +246,7 @@ void Renderer3D::setDynamicParameters(const vk::raii::CommandBuffer& commandBuff
 
 void Renderer3D::setFrameUniforms(const vk::raii::CommandBuffer& commandBuffer) {
 	const auto camera = ECS::getSystem<ControlledCameraSystem>();
+	const auto& cameraData = ECS::getComponent<ControlledCamera>(m_camera);
 	m_frameUniforms.setData({
 		.view = camera->getViewMatrix(),
 		.projection = camera->getProjectionMatrix(),
@@ -252,9 +254,11 @@ void Renderer3D::setFrameUniforms(const vk::raii::CommandBuffer& commandBuffer) 
 
 	u32 nLights;
 	m_fragFrameUniforms.setData({
-		.cameraPosition = ECS::getComponent<ControlledCamera>(m_camera).position,
+		.cameraPosition = cameraData.position,
 		.lights = ECS::getSystem<LightSystem>()->getLights(nLights),
-		.nLights = nLights
+		.nLights = nLights,
+		.far = cameraData.far,
+		.fog = cameraData.far / 20.0f
 	});
 	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline->getLayout(), FRAME_SET_NUMBER, {*m_frameDescriptor}, nullptr);
 }

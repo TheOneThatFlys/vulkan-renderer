@@ -25,6 +25,7 @@ struct FragFrameData {
     glm::vec3 cameraPosition;
     std::array<LightSystem::PointLightFragData, LightSystem::MAX_LIGHTS> lights;
     u32 nLights;
+    float far, fog;
 };
 
 struct RendererDebugInfo {

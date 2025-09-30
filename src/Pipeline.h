@@ -21,6 +21,7 @@ public:
         Builder& setSamples(vk::SampleCountFlagBits samples);
         Builder& addAttachment(vk::Format format);
         Builder& addAttachment(vk::Format format, const vk::PipelineColorBlendAttachmentState& attachment);
+        Builder& enableAlphaBlending(); // make sure to call this after addAttachment
         std::unique_ptr<Pipeline> create();
     private:
 

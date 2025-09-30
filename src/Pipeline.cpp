@@ -117,6 +117,22 @@ Pipeline::Builder & Pipeline::Builder::addAttachment(const vk::Format format, co
 	return *this;
 }
 
+Pipeline::Builder & Pipeline::Builder::enableAlphaBlending() {
+	if (m_attachments.empty()) {
+		Logger::warn("No colour attachments in pipeline. Make sure to call Builder::addAttachment() before Builder::enableAlphaBlending()");
+	}
+	for (auto& attachment : m_attachments) {
+		attachment.blendEnable = vk::True;
+		attachment.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
+		attachment.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+		attachment.srcAlphaBlendFactor = vk::BlendFactor::eOne;
+		attachment.dstAlphaBlendFactor = vk::BlendFactor::eZero;
+		attachment.colorBlendOp = vk::BlendOp::eAdd;
+		attachment.alphaBlendOp = vk::BlendOp::eAdd;
+	}
+	return *this;
+}
+
 Pipeline::Builder & Pipeline::Builder::addAttachment(const vk::Format format) {
 	m_attachments.push_back({
 		.blendEnable = vk::False,
@@ -165,7 +181,7 @@ std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 		.pDynamicStates = m_dynamicStates.data()
 	};
 
-	vk::PipelineColorBlendStateCreateInfo colorBlending = {
+	const vk::PipelineColorBlendStateCreateInfo colorBlending = {
 		.logicOpEnable = vk::False,
 		.attachmentCount = static_cast<u32>(m_attachments.size()),
 		.pAttachments = m_attachments.data()
@@ -189,7 +205,7 @@ std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 		vk::PipelineRenderingCreateInfo {
 			.colorAttachmentCount = static_cast<u32>(m_colourFormats.size()),
 			.pColorAttachmentFormats = m_colourFormats.data(),
-			.depthAttachmentFormat = m_engine->getDepthFormat(),
+			.depthAttachmentFormat = m_engine->getDepthFormat()
 		}
 	};
 
