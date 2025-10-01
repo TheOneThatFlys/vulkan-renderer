@@ -9,8 +9,8 @@
 #include "Renderer3D.h"
 #include "VulkanEngine.h"
 
-ModelSelector::ModelSelector(VulkanEngine *engine, vk::Extent2D extent) : m_engine(engine), m_extent(extent), m_frameUniforms(m_engine, 0), m_modelUniforms(m_engine, 0, ECS::MAX_ENTITIES) {
-    m_pipeline = Pipeline::Builder(m_engine)
+ModelSelector::ModelSelector(const vk::Extent2D extent) : m_extent(extent), m_modelUniforms(ECS::MAX_ENTITIES) {
+    m_pipeline = Pipeline::Builder()
         .addShaderStage("shaders/id.vert.spv")
         .addShaderStage("shaders/id.frag.spv")
         .addAttachment(getTextureFormat())
@@ -24,12 +24,12 @@ ModelSelector::ModelSelector(VulkanEngine *engine, vk::Extent2D extent) : m_engi
     m_modelDescriptor = m_pipeline->createDescriptorSet(MODEL_SET_NUMBER);
     m_frameDescriptor = m_pipeline->createDescriptorSet(FRAME_SET_NUMBER);
 
-    m_frameUniforms.addToSet(m_frameDescriptor);
-    m_modelUniforms.addToSet(m_modelDescriptor);
+    m_frameUniforms.addToSet(m_frameDescriptor, 0);
+    m_modelUniforms.addToSet(m_modelDescriptor, 0);
 }
 
 void ModelSelector::update(float) {
-    const auto renderer = m_engine->getRenderer();
+    const auto renderer = VulkanEngine::getRenderer();
     if (m_selected != ECS::NULL_ENTITY) {
         renderer->getBoundingVolumeRenderer()->queueOBB(ECS::getComponent<BoundingVolume>(m_selected).obb, glm::vec3(1.0f, 0.657f, 0.0f));
     }
@@ -69,10 +69,10 @@ ECS::Entity ModelSelector::getSelected() const {
 ECS::Entity ModelSelector::calculateSelectedEntity() {
     glm::vec2 mousePosition = InputManager::mousePos();
     auto iMousePosition = glm::ivec2(mousePosition);
-    const auto [winWidth, winHeight] = m_engine->getWindowSize();
+    const auto [winWidth, winHeight] = VulkanEngine::getWindowSize();
 
-    auto commandBuffer = m_engine->beginSingleCommand();
-    m_engine->transitionImageLayout(commandBuffer, {m_colourImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal});
+    auto commandBuffer = VulkanEngine::beginSingleCommand();
+    VulkanEngine::transitionImageLayout(commandBuffer, {m_colourImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal});
 
     const vk::RenderingAttachmentInfo colourAttachment = {
         .imageView = m_colourImageView,
@@ -128,7 +128,7 @@ ECS::Entity ModelSelector::calculateSelectedEntity() {
 
     u32 i = 0;
     const Ray ray = camera->normalisedScreenToRay(mousePosition);
-    for (const auto entity : m_engine->getRenderer()->getLastRenderedEntities()) {
+    for (const auto entity : VulkanEngine::getRenderer()->getLastRenderedEntities()) {
         assert(ECS::hasComponent<BoundingVolume>(entity));
         assert(ECS::hasComponent<Transform>(entity));
         assert(ECS::hasComponent<Model3D>(entity));
@@ -148,7 +148,7 @@ ECS::Entity ModelSelector::calculateSelectedEntity() {
 
     commandBuffer.endRendering();
 
-    m_engine->transitionImageLayout(commandBuffer, {m_colourImage, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal});
+    VulkanEngine::transitionImageLayout(commandBuffer, {m_colourImage, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal});
     const vk::BufferImageCopy region = {
         .bufferOffset = 0,
         .bufferRowLength = 0,
@@ -164,7 +164,7 @@ ECS::Entity ModelSelector::calculateSelectedEntity() {
     };
     commandBuffer.copyImageToBuffer(m_colourImage, vk::ImageLayout::eTransferSrcOptimal, m_outputBuffer, region);
 
-    m_engine->endSingleCommand(commandBuffer);
+    VulkanEngine::endSingleCommand(commandBuffer);
 
     void* data = m_outputBufferMemory.mapMemory(0, m_outputBuffer.getMemoryRequirements().size);
 
@@ -174,23 +174,23 @@ ECS::Entity ModelSelector::calculateSelectedEntity() {
 }
 
 void ModelSelector::createAttachments() {
-    std::tie(m_colourImage, m_colourImageMemory) = m_engine->createImage({
+    std::tie(m_colourImage, m_colourImageMemory) = VulkanEngine::createImage({
 		.width = m_extent.width,
 		.height = m_extent.height,
 		.format = getTextureFormat(),
 		.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc,
 	});
-    m_colourImageView = m_engine->createImageView(m_colourImage, getTextureFormat(), vk::ImageAspectFlagBits::eColor);
+    m_colourImageView = VulkanEngine::createImageView(m_colourImage, getTextureFormat(), vk::ImageAspectFlagBits::eColor);
 
-    std::tie(m_depthImage,m_depthImageMemory) = m_engine->createImage({
+    std::tie(m_depthImage,m_depthImageMemory) = VulkanEngine::createImage({
         .width = m_extent.width,
         .height = m_extent.height,
-        .format = m_engine->getDepthFormat(),
+        .format = VulkanEngine::getDepthFormat(),
         .usage = vk::ImageUsageFlagBits::eDepthStencilAttachment
     });
-    m_depthImageView = m_engine->createImageView(m_depthImage, m_engine->getDepthFormat(), vk::ImageAspectFlagBits::eDepth);
+    m_depthImageView = VulkanEngine::createImageView(m_depthImage, VulkanEngine::getDepthFormat(), vk::ImageAspectFlagBits::eDepth);
 
-    std::tie(m_outputBuffer, m_outputBufferMemory) = m_engine->createBuffer(m_colourImage.getMemoryRequirements().size, vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
+    std::tie(m_outputBuffer, m_outputBufferMemory) = VulkanEngine::createBuffer(m_colourImage.getMemoryRequirements().size, vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
 }
 
 constexpr vk::Format ModelSelector::getTextureFormat() const {

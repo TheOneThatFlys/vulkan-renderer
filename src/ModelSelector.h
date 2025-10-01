@@ -11,7 +11,7 @@ class Pipeline;
 
 class ModelSelector : public IUpdatable {
 public:
-    explicit ModelSelector(VulkanEngine* engine, vk::Extent2D extent);
+    explicit ModelSelector(vk::Extent2D extent);
     ~ModelSelector() override = default;
     void update(float) override;
 
@@ -37,8 +37,6 @@ private:
 
     ECS::Entity calculateSelectedEntity();
     void createAttachments();
-
-    VulkanEngine* m_engine;
 
     vk::Extent2D m_extent;
 

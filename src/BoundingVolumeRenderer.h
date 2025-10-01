@@ -10,7 +10,7 @@
 class VulkanEngine;
 class BoundingVolumeRenderer {
 public:
-    explicit BoundingVolumeRenderer(VulkanEngine* engine, const Renderer3D* parentRenderer);
+    explicit BoundingVolumeRenderer(const Renderer3D* parentRenderer);
 
     void draw(const vk::raii::CommandBuffer &commandBuffer);
     void rebuild();
@@ -41,8 +41,6 @@ private:
 
     void createPipeline(vk::SampleCountFlagBits samples);
     void createVolumes();
-
-    VulkanEngine* m_engine;
 
     std::unique_ptr<Pipeline> m_pipeline = nullptr;
 

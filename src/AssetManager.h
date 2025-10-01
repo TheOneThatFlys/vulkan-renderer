@@ -11,11 +11,9 @@
 #include "Material.h"
 #include "Skybox.h"
 
-class VulkanEngine;
-
 class AssetManager {
 public:
-    explicit AssetManager(VulkanEngine* engine);
+    AssetManager();
     ECS::Entity loadGLB(const std::string& path);
     std::unique_ptr<Skybox> loadSkybox(const std::string& folderPath, const char* ext = "png");
 
@@ -25,8 +23,6 @@ private:
     void loadImage(std::string path);
 
     static void validateAccessor(const tinygltf::Accessor& accessor, u32 componentType, u32 type);
-
-    VulkanEngine* m_engine;
 
     tinygltf::TinyGLTF m_loader;
 

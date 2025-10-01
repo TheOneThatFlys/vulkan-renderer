@@ -4,12 +4,12 @@
 
 #include "VulkanEngine.h"
 
-Texture::Texture(const VulkanEngine *engine, const unsigned char *pixels, u32 width, u32 height, vk::Format format, const SamplerInfo& samplerInfo) : m_width(width), m_height(height) {
+Texture::Texture(const unsigned char *pixels, u32 width, u32 height, vk::Format format, const SamplerInfo& samplerInfo) : m_width(width), m_height(height) {
     assert(vk::componentCount(format) == 4 && vk::componentBits(format, 0) == 8);
     constexpr u32 bitdepth = 4;
     vk::DeviceSize imageSize = width * height * bitdepth;
 
-    auto [stagingBuffer, stagingBufferMemory] = engine->createBuffer(imageSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
+    auto [stagingBuffer, stagingBufferMemory] = VulkanEngine::createBuffer(imageSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
     void* data = stagingBufferMemory.mapMemory(0, imageSize);
     memcpy(data, pixels, imageSize);
     stagingBufferMemory.unmapMemory();
@@ -19,7 +19,7 @@ Texture::Texture(const VulkanEngine *engine, const unsigned char *pixels, u32 wi
         m_mips = static_cast<u32>(std::floor(std::log2(std::max(width, height)))) + 1;
     }
 
-    std::tie(m_image, m_imageMemory) = engine->createImage({
+    std::tie(m_image, m_imageMemory) = VulkanEngine::createImage({
         .width = width,
         .height = height,
         .format = format,
@@ -28,8 +28,8 @@ Texture::Texture(const VulkanEngine *engine, const unsigned char *pixels, u32 wi
     });
 
     // transition image layout for optimal copying
-    const auto commandBuffer = engine->beginSingleCommand();
-    engine->transitionImageLayout(commandBuffer, {m_image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, m_mips});
+    const auto commandBuffer = VulkanEngine::beginSingleCommand();
+    VulkanEngine::transitionImageLayout(commandBuffer, {m_image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, m_mips});
     // copy staging buffer data to image
     vk::BufferImageCopy copyRegion = {
         .bufferOffset = 0,
@@ -46,9 +46,9 @@ Texture::Texture(const VulkanEngine *engine, const unsigned char *pixels, u32 wi
     };
 
     commandBuffer.copyBufferToImage(stagingBuffer, m_image, vk::ImageLayout::eTransferDstOptimal, copyRegion);
-    engine->endSingleCommand(commandBuffer);
-    generateMipmaps(engine);
-    m_imageView = engine->createImageView(*m_image, format, vk::ImageAspectFlagBits::eColor, m_mips);
+    VulkanEngine::endSingleCommand(commandBuffer);
+    generateMipmaps();
+    m_imageView = VulkanEngine::createImageView(*m_image, format, vk::ImageAspectFlagBits::eColor, m_mips);
 
     vk::SamplerCreateInfo samplerCreateInfo = {
         .magFilter = samplerInfo.magFilter,
@@ -59,7 +59,7 @@ Texture::Texture(const VulkanEngine *engine, const unsigned char *pixels, u32 wi
         .addressModeW = samplerInfo.wrapW,
         .mipLodBias = 0.0f,
         .anisotropyEnable = vk::True,
-        .maxAnisotropy = engine->getPhysicalDevice().getProperties().limits.maxSamplerAnisotropy,
+        .maxAnisotropy = VulkanEngine::getPhysicalDevice().getProperties().limits.maxSamplerAnisotropy,
         .compareEnable = vk::False,
         .compareOp = vk::CompareOp::eAlways,
         .minLod = 0.0f,
@@ -67,7 +67,7 @@ Texture::Texture(const VulkanEngine *engine, const unsigned char *pixels, u32 wi
         .unnormalizedCoordinates = vk::False
     };
 
-    m_sampler = vk::raii::Sampler(engine->getDevice(), samplerCreateInfo);
+    m_sampler = vk::raii::Sampler(VulkanEngine::getDevice(), samplerCreateInfo);
 }
 
 const vk::raii::Image & Texture::getImage() const {
@@ -86,8 +86,8 @@ const vk::raii::Sampler & Texture::getSampler() const {
     return m_sampler;
 }
 
-void Texture::generateMipmaps(const VulkanEngine* engine) {
-    const auto commandBuffer = engine->beginSingleCommand();
+void Texture::generateMipmaps() const {
+    const auto commandBuffer = VulkanEngine::beginSingleCommand();
 
     vk::ImageMemoryBarrier barrier = {
         .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
@@ -154,5 +154,5 @@ void Texture::generateMipmaps(const VulkanEngine* engine) {
     barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
     commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader, {}, nullptr, nullptr, barrier);
 
-    engine->endSingleCommand(commandBuffer);
+    VulkanEngine::endSingleCommand(commandBuffer);
 }

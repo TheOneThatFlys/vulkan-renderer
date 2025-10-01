@@ -36,7 +36,7 @@ struct RendererDebugInfo {
 
 class Renderer3D final : public ECS::System {
 public:
-    explicit Renderer3D(VulkanEngine *engine, vk::Extent2D extent);
+    explicit Renderer3D(vk::Extent2D extent);
     void render(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image, const vk::ImageView &imageView);
 
     void onEntityAdd(ECS::Entity entity) override;
@@ -73,7 +73,6 @@ private:
     void drawSkybox(const vk::raii::CommandBuffer &commandBuffer);
     void endRender(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image) const;
 
-    VulkanEngine* m_engine;
     vk::Extent2D m_extent;
 
     std::unique_ptr<Pipeline> m_pipeline = nullptr;

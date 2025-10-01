@@ -6,7 +6,7 @@
 
 class Material {
 public:
-    Material(const VulkanEngine* engine, const Texture *base, const Texture *metallicRoughness, const Texture *ao, const Texture *normal);
+    Material(const Texture *base, const Texture *metallicRoughness, const Texture *ao, const Texture *normal);
     void use(const vk::raii::CommandBuffer& commandBuffer, const vk::raii::PipelineLayout& layout) const;
 
 private:

@@ -21,14 +21,12 @@ enum DebugFlags {
 class VulkanEngine;
 class DebugWindow {
 public:
-    DebugWindow(VulkanEngine* engine, GLFWwindow *window);
+    DebugWindow();
     ~DebugWindow();
     void draw(const vk::raii::CommandBuffer& commandBuffer);
     void rebuild() const;
 
 private:
-
-
     void initVulkanImpl() const;
     using UpdateCallback = void(*)(DebugWindow*);
     void setTimedUpdate(UpdateCallback func, int nFrames);
@@ -41,8 +39,6 @@ private:
     void renderTab() const;
     void ecsTab();
     void searchTab();
-
-    VulkanEngine* m_engine;
 
     std::unordered_map<UpdateCallback, int> m_updateCallbacks;
     std::unordered_map<UpdateCallback, int> m_callbackLives;

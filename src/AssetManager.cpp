@@ -16,16 +16,16 @@ static std::unordered_map<u32, vk::SamplerAddressMode> g_wrapModeMap = {
     {TINYGLTF_TEXTURE_WRAP_MIRRORED_REPEAT, vk::SamplerAddressMode::eMirroredRepeat}
 };
 
-AssetManager::AssetManager(VulkanEngine* engine) : m_engine(engine) {
+AssetManager::AssetManager() {
     stbi_set_flip_vertically_on_load(true);
 
     std::array<u8, 4> whitePixels = {255, 255, 255, 255};
 
-    m_textures.push_back(std::make_unique<Texture>(engine, whitePixels.data(), 1, 1));
+    m_textures.push_back(std::make_unique<Texture>(whitePixels.data(), 1, 1));
     m_pureWhite1x1Texture = m_textures.back().get();
 
     std::array<u8, 4> normalPixels = {128, 128, 255, 0};
-    m_textures.push_back(std::make_unique<Texture>(engine, normalPixels.data(), 1, 1, vk::Format::eR8G8B8A8Unorm));
+    m_textures.push_back(std::make_unique<Texture>(normalPixels.data(), 1, 1, vk::Format::eR8G8B8A8Unorm));
     m_normal1x1Texture = m_textures.back().get();
 
     {
@@ -77,7 +77,7 @@ AssetManager::AssetManager(VulkanEngine* engine) : m_engine(engine) {
         for (u32 i = 0; i < vertices.size(); ++i) {
             indexes.push_back(i);
         }
-        m_meshes.push_back(std::make_unique<Mesh<>>(engine, vertices, indexes));
+        m_meshes.push_back(std::make_unique<Mesh<>>(vertices, indexes));
         m_unitCubeMesh = m_meshes.back().get();
     }
 }
@@ -147,7 +147,7 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
                 samplerInfo.mipmapMode = vk::SamplerMipmapMode::eNearest;
             }
 
-            m_textures.push_back(std::make_unique<Texture>(m_engine, source.image.data(), source.width, source.height, format, samplerInfo));
+            m_textures.push_back(std::make_unique<Texture>(source.image.data(), source.width, source.height, format, samplerInfo));
             return m_textures.back().get();
         };
 
@@ -155,7 +155,7 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
         Texture *metallicRoughnessTexture = resolveTexture(material.pbrMetallicRoughness.metallicRoughnessTexture.index, m_pureWhite1x1Texture, vk::Format::eR8G8B8A8Unorm);
         Texture *aoTexture = resolveTexture(material.occlusionTexture.index, m_pureWhite1x1Texture, vk::Format::eR8G8B8A8Unorm);
         Texture *normalTexture = resolveTexture(material.normalTexture.index, m_normal1x1Texture, vk::Format::eR8G8B8A8Unorm);
-        m_materials.push_back(std::make_unique<Material>(m_engine, baseTexture, metallicRoughnessTexture, aoTexture, normalTexture));
+        m_materials.push_back(std::make_unique<Material>(baseTexture, metallicRoughnessTexture, aoTexture, normalTexture));
         materials.emplace_back(m_materials.back().get());
     }
     // meshes
@@ -247,7 +247,7 @@ std::unique_ptr<Skybox> AssetManager::loadSkybox(const std::string &folderPath, 
         stbi__vertical_flip(data[i], width, height, 4); // probably not supposed to use this but for some reason stbi load on flip refuses to work
         if (data[i] == nullptr) throw std::runtime_error(std::format("Unable to load image at {} ({})", folderPath, stbi_failure_reason()));
     }
-    auto skybox = std::make_unique<Skybox>(m_engine, data, width, height);
+    auto skybox = std::make_unique<Skybox>(data, width, height);
     for (u32 i = 0; i < 6; ++i) {
         stbi_image_free(data[i]);
     }
@@ -328,14 +328,14 @@ std::unique_ptr<Mesh<>> AssetManager::loadMesh(const tinygltf::Model& ctx, const
         default:
             Logger::error(std::format("Unknown index type: {}", indexAccessor.componentType));
     }
-    return std::make_unique<Mesh<>>(m_engine, vertices, indexes);
+    return std::make_unique<Mesh<>>(vertices, indexes);
 }
 
 void AssetManager::loadImage(std::string path) {
     i32 width, height, channels;
     stbi_uc* pixels = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     if (pixels == nullptr) throw std::runtime_error(std::format("Unable to load image at {} ({})", path, stbi_failure_reason()));
-    m_textures.emplace_back(std::make_unique<Texture>(m_engine, pixels, static_cast<u32>(width), static_cast<u32>(height)));
+    m_textures.emplace_back(std::make_unique<Texture>(pixels, static_cast<u32>(width), static_cast<u32>(height)));
     stbi_image_free(pixels);
 }
 

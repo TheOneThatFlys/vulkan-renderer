@@ -9,7 +9,7 @@ class Pipeline {
 public:
     class Builder {
     public:
-        explicit Builder(VulkanEngine* engine);
+        Builder();
         Builder& setVertexInfo(const vk::VertexInputBindingDescription& bindings, const std::vector<vk::VertexInputAttributeDescription>& attributes);
         Builder& addShaderStage(std::string path);
         Builder& addBinding(u32 set, u32 binding, vk::DescriptorType type, vk::ShaderStageFlagBits stage);
@@ -23,9 +23,8 @@ public:
         Builder& addAttachment(vk::Format format, const vk::PipelineColorBlendAttachmentState& attachment);
         Builder& enableAlphaBlending(); // make sure to call this after addAttachment
         std::unique_ptr<Pipeline> create();
-    private:
 
-        VulkanEngine* m_engine;
+    private:
         std::unordered_map<vk::ShaderStageFlagBits, vk::raii::ShaderModule> m_shaders;
         vk::PipelineVertexInputStateCreateInfo m_vertexInputInfo;
         vk::VertexInputBindingDescription m_bindings;
@@ -43,14 +42,13 @@ public:
         std::vector<vk::Format> m_colourFormats;
     };
 
-    Pipeline(VulkanEngine* engine, vk::raii::Pipeline pipeline, vk::raii::PipelineLayout layout, std::vector<vk::raii::DescriptorSetLayout> descriptorSetLayouts);
+    Pipeline(vk::raii::Pipeline pipeline, vk::raii::PipelineLayout layout, std::vector<vk::raii::DescriptorSetLayout> descriptorSetLayouts);
     vk::raii::DescriptorSet createDescriptorSet(u32 set) const;
     const vk::raii::Pipeline& getPipeline() const;
     const vk::raii::PipelineLayout& getLayout() const;
     const vk::raii::DescriptorSetLayout& getDescriptorLayout(u32 set) const;
 
 private:
-    VulkanEngine* m_engine = nullptr;
     vk::raii::Pipeline m_pipeline = nullptr;
     vk::raii::PipelineLayout m_layout = nullptr;
     std::vector<vk::raii::DescriptorSetLayout> m_descriptorLayouts;

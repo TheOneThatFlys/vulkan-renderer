@@ -216,17 +216,17 @@ void VulkanEngine::initECS() {
 	ECS::registerSystem<EntitySystem>();
 	ECS::setSystemSignature<EntitySystem>(ECS::createSignature<>());
 
-	m_updatables.push_back(ECS::registerSystem<ControlledCameraSystem>(this, m_window));
+	m_updatables.push_back(ECS::registerSystem<ControlledCameraSystem>());
 	ECS::setSystemSignature<ControlledCameraSystem>(ECS::createSignature<ControlledCamera>());
 
-	m_renderer = ECS::registerSystem<Renderer3D>(this, m_swapExtent);
+	m_renderer = ECS::registerSystem<Renderer3D>(m_swapExtent);
 	ECS::setSystemSignature<Renderer3D>(ECS::createSignature<Transform, Model3D>());
 
 	ECS::registerSystem<LightSystem>();
 	ECS::setSystemSignature<LightSystem>(ECS::createSignature<Transform, PointLight>());
 
-	m_assetManager = std::make_unique<AssetManager>(this);
-	m_debugWindow = std::make_unique<DebugWindow>(this, m_window);
+	m_assetManager = std::make_unique<AssetManager>();
+	m_debugWindow = std::make_unique<DebugWindow>();
 }
 
 void VulkanEngine::createScene() const {

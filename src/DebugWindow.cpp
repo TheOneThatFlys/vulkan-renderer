@@ -11,16 +11,15 @@
 #include "Renderer3D.h"
 #include "VulkanEngine.h"
 
-DebugWindow::DebugWindow(VulkanEngine* engine, GLFWwindow *window) : m_engine(engine) {
+DebugWindow::DebugWindow() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
 
-    ImGui_ImplGlfw_InitForVulkan(window, true);
+    ImGui_ImplGlfw_InitForVulkan(VulkanEngine::getWindow(), true);
     initVulkanImpl();
     createUpdateCallbacks();
-
     m_searchText.resize(64);
 }
 
@@ -44,13 +43,13 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    m_frameTimes[m_framePointer++] = m_engine->getFrameTimeInfo();
+    m_frameTimes[m_framePointer++] = VulkanEngine::get().getFrameTimeInfo();
     if (m_framePointer == FRAME_AVERAGE_COUNT) {
         m_framePointer = 0;
         if (!m_framesFilled) m_framesFilled = true;
     }
 
-    const auto [windowWidth, windowHeight] = m_engine->getWindowSize();
+    const auto [windowWidth, windowHeight] = VulkanEngine::getWindowSize();
     ImGui::SetNextWindowSizeConstraints({-1.0f, -1.0f}, {-1.0f, static_cast<float>(windowHeight) - 16.0f});
     ImGui::SetNextWindowPos(ImVec2(8, 8));
     ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
@@ -71,7 +70,7 @@ void DebugWindow::draw(const vk::raii::CommandBuffer& commandBuffer) {
     ImGui_ImplVulkan_RenderDrawData(drawData, *commandBuffer);
 
     // render bounding volumes
-    const auto renderer = m_engine->getRenderer();
+    const auto renderer = VulkanEngine::getRenderer();
     BoundingVolumeRenderer* boundingVolumeRenderer = renderer->getBoundingVolumeRenderer();
     for (const auto entity : renderer->getLastRenderedEntities()) {
         if (!m_debugFlags.at(entity).test(eDisplayBoundingVolume)) continue;
@@ -95,23 +94,23 @@ void DebugWindow::rebuild() const {
 }
 
 void DebugWindow::initVulkanImpl() const{
-    auto colourFormat = static_cast<VkFormat>(m_engine->getSwapColourFormat());
+    auto colourFormat = static_cast<VkFormat>(VulkanEngine::getSwapColourFormat());
     ImGui_ImplVulkan_InitInfo initInfo = {
         .ApiVersion = vk::ApiVersion14,
-        .Instance = *m_engine->getInstance(),
-        .PhysicalDevice = *m_engine->getPhysicalDevice(),
-        .Device = *m_engine->getDevice(),
-        .Queue = *m_engine->getGraphicsQueue(),
+        .Instance = *VulkanEngine::getInstance(),
+        .PhysicalDevice = *VulkanEngine::getPhysicalDevice(),
+        .Device = *VulkanEngine::getDevice(),
+        .Queue = *VulkanEngine::getGraphicsQueue(),
         .MinImageCount = 2,
         .ImageCount = 2,
-        .MSAASamples = static_cast<VkSampleCountFlagBits>(m_engine->getRenderer()->getSampleCount()),
+        .MSAASamples = static_cast<VkSampleCountFlagBits>(VulkanEngine::getRenderer()->getSampleCount()),
         .DescriptorPoolSize = 64,
         .UseDynamicRendering = true,
         .PipelineRenderingCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
             .colorAttachmentCount = 1,
             .pColorAttachmentFormats = &colourFormat,
-            .depthAttachmentFormat = static_cast<VkFormat>(m_engine->getDepthFormat()),
+            .depthAttachmentFormat = static_cast<VkFormat>(VulkanEngine::getDepthFormat()),
         }
     };
     ImGui_ImplVulkan_Init(&initInfo);
@@ -124,7 +123,7 @@ void DebugWindow::setTimedUpdate(UpdateCallback func, int nFrames) {
 
 void DebugWindow::createUpdateCallbacks() {
     setTimedUpdate([](DebugWindow* window) -> void {
-        window->m_vramUsage = window->m_engine->getVramUsage();
+        window->m_vramUsage = VulkanEngine::get().getVramUsage();
     }, 60);
 }
 
@@ -224,7 +223,7 @@ void DebugWindow::drawNodeRecursive(ECS::Entity entity) {
                 ImGui::Text("Material: <0x%X>", model.material);
 
                 if (ImGui::Button("Highlight in world")) {
-                    m_engine->getRenderer()->highlightEntity(entity);
+                    VulkanEngine::getRenderer()->highlightEntity(entity);
                 }
 
                 ImGui::TreePop();
@@ -329,7 +328,7 @@ void DebugWindow::performanceTab() const {
 
         ImGui::Separator();
 
-        const auto rendererInfo = m_engine->getRenderer()->getDebugInfo();
+        const auto rendererInfo = VulkanEngine::getRenderer()->getDebugInfo();
         ImGui::Text(std::format("Total Instances:    {}", rendererInfo.totalInstanceCount).c_str());
         ImGui::Text(std::format("Rendered Instances: {}", rendererInfo.renderedInstanceCount).c_str());
         ImGui::Text(std::format("Material Switches:  {}", rendererInfo.materialSwitches).c_str());
@@ -356,12 +355,12 @@ void DebugWindow::renderTab() const {
             return std::format("{}x{}", res.first, res.second);
         };
 
-        const Resolution actualResolution = m_engine->getWindowSize();
+        const Resolution actualResolution = VulkanEngine::getWindowSize();
         if (ImGui::BeginCombo("Resolution", resToString(actualResolution).c_str())) {
             for (const auto& resolution : resolutions) {
                 const bool isSelected = resolution == actualResolution;
                 if (ImGui::Selectable(resToString(resolution).c_str(), isSelected)) {
-                    m_engine->setWindowSize(resolution.first, resolution.second);
+                    VulkanEngine::setWindowSize(resolution.first, resolution.second);
                 }
                 if (isSelected) {
                     ImGui::SetItemDefaultFocus();
@@ -373,7 +372,7 @@ void DebugWindow::renderTab() const {
         static constexpr std::array sampleOptions = { vk::SampleCountFlagBits::e1, vk::SampleCountFlagBits::e2, vk::SampleCountFlagBits::e4, vk::SampleCountFlagBits::e8 };
         static constexpr std::array sampleNames = { "Off", "MSAAx2", "MSAAx4", "MSAAx8" };
 
-        const auto currentSamples = m_engine->getRenderer()->getSampleCount();
+        const auto currentSamples = VulkanEngine::getRenderer()->getSampleCount();
         int i = 0;
         switch (currentSamples) {
             case vk::SampleCountFlagBits::e1:
@@ -392,12 +391,12 @@ void DebugWindow::renderTab() const {
                 i = -1;
         }
         if (ImGui::SliderInt("Antialiasing", &i, 0, static_cast<int>(sampleOptions.size()) - 1, sampleNames[i])) {
-            m_engine->getRenderer()->setSampleCount(sampleOptions.at(i));
+            VulkanEngine::getRenderer()->setSampleCount(sampleOptions.at(i));
         }
 
-        bool isVsync = m_engine->getPresentMode() == vk::PresentModeKHR::eFifo;
+        bool isVsync = VulkanEngine::getPresentMode() == vk::PresentModeKHR::eFifo;
         if (ImGui::Checkbox("VSync", &isVsync)) {
-            m_engine->setPresentMode(isVsync ? vk::PresentModeKHR::eFifo : vk::PresentModeKHR::eImmediate);
+            VulkanEngine::setPresentMode(isVsync ? vk::PresentModeKHR::eFifo : vk::PresentModeKHR::eImmediate);
         }
 
         ImGui::EndTabItem();
@@ -419,7 +418,7 @@ void DebugWindow::ecsTab() {
         }
 
         ImGui::SeparatorText("Highlighting");
-        const auto renderer = m_engine->getRenderer();
+        const auto renderer = VulkanEngine::getRenderer();
         int s = renderer->getHighlightedEntity();
         ImGui::InputInt("Current ID", &s);
         renderer->highlightEntity(s);

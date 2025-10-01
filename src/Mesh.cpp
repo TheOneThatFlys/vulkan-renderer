@@ -3,9 +3,8 @@
 #include "VulkanEngine.h"
 
 template<ValidVertex V>
-Mesh<V>::Mesh(VulkanEngine* engine, const std::vector<V>& vertices, const std::vector<u32> &indexes)
-    : m_engine(engine)
-    , m_indexCount(static_cast<u32>(indexes.size()))
+Mesh<V>::Mesh(const std::vector<V>& vertices, const std::vector<u32> &indexes)
+    : m_indexCount(static_cast<u32>(indexes.size()))
     , m_indexType(vk::IndexType::eUint32)
     , m_localOBB(resolveOBB(vertices))
 {
@@ -29,7 +28,7 @@ template<ValidVertex V>
 void Mesh<V>::createVertexBuffer(const std::vector<V>& vertices) {
     const u64 bufferSize = sizeof(V) * vertices.size();
 
-    auto [stagingBuffer, stagingBufferMemory] = m_engine->createBuffer(
+    auto [stagingBuffer, stagingBufferMemory] = VulkanEngine::createBuffer(
         bufferSize,
         vk::BufferUsageFlagBits::eTransferSrc,
         vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible
@@ -39,13 +38,13 @@ void Mesh<V>::createVertexBuffer(const std::vector<V>& vertices) {
     memcpy(data, vertices.data(), bufferSize);
     stagingBufferMemory.unmapMemory();
 
-    std::tie(m_vertexBuffer, m_vertexBufferMemory) = m_engine->createBuffer(
+    std::tie(m_vertexBuffer, m_vertexBufferMemory) = VulkanEngine::createBuffer(
         bufferSize,
         vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
         vk::MemoryPropertyFlagBits::eDeviceLocal
     );
 
-    m_engine->copyBuffer(stagingBuffer, m_vertexBuffer, bufferSize);
+    VulkanEngine::copyBuffer(stagingBuffer, m_vertexBuffer, bufferSize);
 }
 
 template<ValidVertex V>
@@ -86,7 +85,7 @@ template<ValidVertex V>
 void Mesh<V>::createIndexBuffer(const std::vector<u32>& indexes) {
     const u64 bufferSize = sizeof(u32) * indexes.size();
 
-    auto [stagingBuffer, stagingBufferMemory] = m_engine->createBuffer(
+    auto [stagingBuffer, stagingBufferMemory] = VulkanEngine::createBuffer(
         bufferSize,
         vk::BufferUsageFlagBits::eTransferSrc,
         vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible
@@ -96,13 +95,13 @@ void Mesh<V>::createIndexBuffer(const std::vector<u32>& indexes) {
     std::memcpy(data, indexes.data(), bufferSize);
     stagingBufferMemory.unmapMemory();
 
-    std::tie(m_indexBuffer, m_indexBufferMemory) = m_engine->createBuffer(
+    std::tie(m_indexBuffer, m_indexBufferMemory) = VulkanEngine::createBuffer(
         bufferSize,
         vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst,
         vk::MemoryPropertyFlagBits::eDeviceLocal
     );
 
-    m_engine->copyBuffer(stagingBuffer, m_indexBuffer, bufferSize);
+    VulkanEngine::copyBuffer(stagingBuffer, m_indexBuffer, bufferSize);
 }
 
 template class Mesh<Vertex>;

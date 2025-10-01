@@ -13,7 +13,7 @@ struct CameraVectors {
 
 class ControlledCameraSystem : public ECS::System, public IUpdatable {
 public:
-    explicit ControlledCameraSystem(VulkanEngine* engine, GLFWwindow* window);
+    explicit ControlledCameraSystem();
     void update(float deltaTime) override;
     glm::mat4 getViewMatrix() const;
     glm::mat4 getProjectionMatrix() const;
@@ -25,6 +25,4 @@ public:
 
 private:
     ControlledCamera& getCamera() const;
-    VulkanEngine* m_engine;
-    GLFWwindow* m_window;
 };

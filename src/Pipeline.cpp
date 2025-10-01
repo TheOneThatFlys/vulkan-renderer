@@ -2,8 +2,7 @@
 
 #include "VulkanEngine.h"
 
-Pipeline::Builder::Builder(VulkanEngine* engine) : m_engine(engine) {
-
+Pipeline::Builder::Builder() {
 	m_inputAssembly = {
 		.topology = vk::PrimitiveTopology::eTriangleList
 	};
@@ -71,7 +70,7 @@ Pipeline::Builder & Pipeline::Builder::addShaderStage(std::string path) {
 		.pCode = reinterpret_cast<const u32*>(code.data())
 	};
 
-	m_shaders.insert({stage, vk::raii::ShaderModule(m_engine->getDevice(), createInfo)});
+	m_shaders.insert({stage, vk::raii::ShaderModule(VulkanEngine::getDevice(), createInfo)});
 	return *this;
 }
 
@@ -156,7 +155,7 @@ std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 			.bindingCount = static_cast<u32>(bindings.size()),
 			.pBindings = bindings.data()
 		};
-		descriptorLayouts.emplace_back(m_engine->getDevice(), createInfo);
+		descriptorLayouts.emplace_back(VulkanEngine::getDevice(), createInfo);
 		cLayouts.push_back(*descriptorLayouts.back());
 	}
 
@@ -165,7 +164,7 @@ std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 		.pSetLayouts = cLayouts.data(),
 	};
 
-	vk::raii::PipelineLayout pipelineLayout(m_engine->getDevice(), pipelineLayoutInfo);
+	vk::raii::PipelineLayout pipelineLayout(VulkanEngine::getDevice(), pipelineLayoutInfo);
 
 	std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
 	for (const auto& [stage, shader] : m_shaders) {
@@ -205,32 +204,30 @@ std::unique_ptr<Pipeline> Pipeline::Builder::create() {
 		vk::PipelineRenderingCreateInfo {
 			.colorAttachmentCount = static_cast<u32>(m_colourFormats.size()),
 			.pColorAttachmentFormats = m_colourFormats.data(),
-			.depthAttachmentFormat = m_engine->getDepthFormat()
+			.depthAttachmentFormat = VulkanEngine::getDepthFormat()
 		}
 	};
 
 	return std::make_unique<Pipeline>(
-		m_engine,
-		vk::raii::Pipeline(m_engine->getDevice(), nullptr, chain.get<vk::GraphicsPipelineCreateInfo>()),
+		vk::raii::Pipeline(VulkanEngine::getDevice(), nullptr, chain.get<vk::GraphicsPipelineCreateInfo>()),
 		std::move(pipelineLayout),
 		std::move(descriptorLayouts)
 	);
 }
 
-Pipeline::Pipeline(VulkanEngine* engine, vk::raii::Pipeline pipeline, vk::raii::PipelineLayout layout, std::vector<vk::raii::DescriptorSetLayout> descriptorSetLayouts)
-	: m_engine(engine)
-	, m_pipeline(std::move(pipeline))
+Pipeline::Pipeline(vk::raii::Pipeline pipeline, vk::raii::PipelineLayout layout, std::vector<vk::raii::DescriptorSetLayout> descriptorSetLayouts)
+	: m_pipeline(std::move(pipeline))
 	, m_layout(std::move(layout))
 	, m_descriptorLayouts(std::move(descriptorSetLayouts))
 {}
 
 vk::raii::DescriptorSet Pipeline::createDescriptorSet(const u32 set) const {
 	 vk::DescriptorSetAllocateInfo allocInfo = {
-		.descriptorPool = m_engine->getDescriptorPool(),
+		.descriptorPool = VulkanEngine::getDescriptorPool(),
 		.descriptorSetCount = 1,
 		.pSetLayouts = &*m_descriptorLayouts.at(set)
 	};
-	return std::move(m_engine->getDevice().allocateDescriptorSets(allocInfo).front());
+	return std::move(VulkanEngine::getDevice().allocateDescriptorSets(allocInfo).front());
 }
 
 const vk::raii::Pipeline & Pipeline::getPipeline() const {

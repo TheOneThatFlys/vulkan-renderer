@@ -8,9 +8,9 @@
 #include "Components.h"
 #include "InputManager.h"
 
-ControlledCameraSystem::ControlledCameraSystem(VulkanEngine* engine, GLFWwindow *window) : m_engine(engine), m_window(window) {
+ControlledCameraSystem::ControlledCameraSystem() {
     // capture mouse
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetInputMode(VulkanEngine::getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     InputManager::disableMouseAcceleration();
 }
 
@@ -53,14 +53,14 @@ void ControlledCameraSystem::update(float deltaTime) {
     if (InputManager::keyPressed(GLFW_KEY_ESCAPE)) {
         camera.capturingMouse = !camera.capturingMouse;
         if (camera.capturingMouse) {
-            glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            glfwSetInputMode(VulkanEngine::getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
-            m_engine->getRenderer()->getModelSelector()->disable();
+            VulkanEngine::getRenderer()->getModelSelector()->disable();
 
         } else {
-            glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            glfwSetInputMode(VulkanEngine::getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
-            m_engine->getRenderer()->getModelSelector()->enable();
+            VulkanEngine::getRenderer()->getModelSelector()->enable();
         }
     }
 

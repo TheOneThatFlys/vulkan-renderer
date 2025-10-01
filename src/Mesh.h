@@ -18,7 +18,7 @@ concept ValidVertex = requires (V v) {
 template<ValidVertex V = Vertex>
 class Mesh {
 public:
-    Mesh(VulkanEngine* engine, const std::vector<V>& vertices, const std::vector<u32> &indexes);
+    Mesh(const std::vector<V>& vertices, const std::vector<u32> &indexes);
     void draw(const vk::raii::CommandBuffer &commandBuffer) const;
 
     OBB getLocalOBB() const;
@@ -29,8 +29,6 @@ private:
 
     // calculate the distance of the furthest vertex from the origin
     OBB resolveOBB(const std::vector<V>& vertices);
-
-    VulkanEngine* m_engine = nullptr;
 
     vk::raii::Buffer m_vertexBuffer = nullptr;
     vk::raii::DeviceMemory m_vertexBufferMemory = nullptr;

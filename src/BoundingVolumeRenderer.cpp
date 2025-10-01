@@ -2,18 +2,16 @@
 
 #include "Renderer3D.h"
 
-BoundingVolumeRenderer::BoundingVolumeRenderer(VulkanEngine* engine, const Renderer3D* parentRenderer)
-	: m_engine(engine)
-	, m_frameUniforms(engine, 0)
-	, m_modelUniforms(engine, 0, ECS::MAX_ENTITIES)
+BoundingVolumeRenderer::BoundingVolumeRenderer(const Renderer3D* parentRenderer)
+	: m_modelUniforms(ECS::MAX_ENTITIES)
 {
 	createPipeline(parentRenderer->getSampleCount());
 
 	m_frameDescriptor = m_pipeline->createDescriptorSet(FRAME_SET_NUMBER);
 	m_modelDescriptor = m_pipeline->createDescriptorSet(MODEL_SET_NUMBER);
 
-	m_frameUniforms.addToSet(m_frameDescriptor);
-	m_modelUniforms.addToSet(m_modelDescriptor);
+	m_frameUniforms.addToSet(m_frameDescriptor, 0);
+	m_modelUniforms.addToSet(m_modelDescriptor, 0);
 
 	createVolumes();
 }
@@ -53,7 +51,7 @@ void BoundingVolumeRenderer::draw(const vk::raii::CommandBuffer& commandBuffer) 
 }
 
 void BoundingVolumeRenderer::rebuild() {
-	createPipeline(m_engine->getRenderer()->getSampleCount());
+	createPipeline(VulkanEngine::getRenderer()->getSampleCount());
 }
 
 void BoundingVolumeRenderer::queueSphere(const Sphere &sphere, const glm::vec3 &colour) {
@@ -65,11 +63,11 @@ void BoundingVolumeRenderer::queueOBB(const OBB &obb, const glm::vec3 &colour) {
 }
 
 void BoundingVolumeRenderer::createPipeline(const vk::SampleCountFlagBits samples) {
-	m_pipeline = Pipeline::Builder(m_engine)
+	m_pipeline = Pipeline::Builder()
 		.addShaderStage("shaders/line.vert.spv")
 		.addShaderStage("shaders/line.frag.spv")
 		.setVertexInfo(BasicVertex::getBindingDescription(), BasicVertex::getAttributeDescriptions())
-		.addAttachment(m_engine->getSwapColourFormat())
+		.addAttachment(VulkanEngine::getSwapColourFormat())
 		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex) // view / project
 		.addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex) // model data
 		.setTopology(vk::PrimitiveTopology::eLineList)
@@ -103,7 +101,7 @@ void BoundingVolumeRenderer::createVolumes() {
 			indexes.push_back(index - steps);
 		}
 
-		m_sphereMesh = std::make_unique<Mesh<BasicVertex>>(m_engine, vertices, indexes);
+		m_sphereMesh = std::make_unique<Mesh<BasicVertex>>(vertices, indexes);
 	}
 
 	// cube
@@ -133,6 +131,6 @@ void BoundingVolumeRenderer::createVolumes() {
 			2, 6,
 			3, 7
 		};
-		m_cubeMesh = std::make_unique<Mesh<BasicVertex>>(m_engine, vertices, indexes);
+		m_cubeMesh = std::make_unique<Mesh<BasicVertex>>(vertices, indexes);
 	}
 }

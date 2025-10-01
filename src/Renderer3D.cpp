@@ -9,14 +9,11 @@
 #include "DebugWindow.h"
 #include "Skybox.h"
 
-Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
-    : m_engine(engine)
-    , m_extent(extent)
-    , m_frameUniforms(m_engine, 0)
-    , m_modelUniforms(m_engine, 0, ECS::MAX_ENTITIES)
-	, m_fragFrameUniforms(m_engine, 1)
-	, m_boundingVolumeRenderer(std::make_unique<BoundingVolumeRenderer>(m_engine, this))
-	, m_modelSelector(std::make_unique<ModelSelector>(m_engine, m_extent))
+Renderer3D::Renderer3D(const vk::Extent2D extent)
+    : m_extent(extent)
+    , m_modelUniforms(ECS::MAX_ENTITIES)
+	, m_boundingVolumeRenderer(std::make_unique<BoundingVolumeRenderer>(this))
+	, m_modelSelector(std::make_unique<ModelSelector>(m_extent))
 {
 	createPipelines();
 	createDepthBuffer();
@@ -26,17 +23,17 @@ Renderer3D::Renderer3D(VulkanEngine *engine, vk::Extent2D extent)
 	m_modelDescriptor = m_pipeline->createDescriptorSet(MODEL_SET_NUMBER);
 	m_skyboxDescriptor = m_skyboxPipeline->createDescriptorSet(FRAME_SET_NUMBER);
 
-    m_frameUniforms.addToSet(m_frameDescriptor);
-	m_frameUniforms.addToSet(m_skyboxDescriptor);
-    m_fragFrameUniforms.addToSet(m_frameDescriptor);
-    m_modelUniforms.addToSet(m_modelDescriptor);
+    m_frameUniforms.addToSet(m_frameDescriptor, 0);
+	m_frameUniforms.addToSet(m_skyboxDescriptor, 0);
+    m_fragFrameUniforms.addToSet(m_frameDescriptor, 1);
+    m_modelUniforms.addToSet(m_modelDescriptor, 0);
 
     // create camera
 	m_camera = ECS::createEntity();
     ECS::addComponent<ControlledCamera>(m_camera, {.aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height)});
     ECS::addComponent<NamedComponent>(m_camera, {"Camera"});
 
-	m_engine->addUpdateListener(m_modelSelector.get());
+	VulkanEngine::addUpdateListener(m_modelSelector.get());
 }
 
 void Renderer3D::render(const vk::raii::CommandBuffer &commandBuffer, const vk::Image& image, const vk::ImageView& imageView) {
@@ -46,7 +43,7 @@ void Renderer3D::render(const vk::raii::CommandBuffer &commandBuffer, const vk::
 	setFrameUniforms(commandBuffer);
 	drawModels(commandBuffer);
 	m_boundingVolumeRenderer->draw(commandBuffer);
-	m_engine->getDebugWindow()->draw(commandBuffer);
+	VulkanEngine::getDebugWindow()->draw(commandBuffer);
 	endRender(commandBuffer, image);
 }
 
@@ -73,7 +70,7 @@ void Renderer3D::rebuild() {
 	createDepthBuffer();
 	createColourBuffer();
 	createPipelines();
-	m_engine->getDebugWindow()->rebuild();
+	VulkanEngine::getDebugWindow()->rebuild();
 	m_boundingVolumeRenderer->rebuild();
 }
 
@@ -107,7 +104,7 @@ ECS::Entity Renderer3D::getCamera() const {
 
 void Renderer3D::setSampleCount(const vk::SampleCountFlagBits samples) {
 	m_samples = samples;
-	m_engine->queueRendererRebuild();
+	VulkanEngine::queueRendererRebuild();
 }
 
 vk::SampleCountFlagBits Renderer3D::getSampleCount() const {
@@ -120,11 +117,11 @@ void Renderer3D::setSkybox(const std::shared_ptr<Skybox> &skybox) {
 }
 
 void Renderer3D::createPipelines() {
-	m_pipeline = Pipeline::Builder(m_engine)
+	m_pipeline = Pipeline::Builder()
 		.addShaderStage("shaders/model.vert.spv")
         .addShaderStage("shaders/model.frag.spv")
         .setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
-		.addAttachment(m_engine->getSwapColourFormat())
+		.addAttachment(VulkanEngine::getSwapColourFormat())
 		.setSamples(m_samples)
 		.enableAlphaBlending()
 
@@ -139,11 +136,11 @@ void Renderer3D::createPipelines() {
         .addBinding(2, 0, vk::DescriptorType::eUniformBufferDynamic, vk::ShaderStageFlagBits::eVertex) // model data
 		.create();
 
-	m_xrayPipeline = Pipeline::Builder(m_engine)
+	m_xrayPipeline = Pipeline::Builder()
 		.addShaderStage("shaders/xray.vert.spv")
 		.addShaderStage("shaders/xray.frag.spv")
 		.setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
-		.addAttachment(m_engine->getSwapColourFormat())
+		.addAttachment(VulkanEngine::getSwapColourFormat())
 		.setPolygonMode(vk::PolygonMode::eLine)
 		.setSamples(m_samples)
 		.disableDepthTest()
@@ -152,11 +149,11 @@ void Renderer3D::createPipelines() {
         .addBinding(0, 1, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment) // unused
 		.create();
 
-	m_skyboxPipeline = Pipeline::Builder(m_engine)
+	m_skyboxPipeline = Pipeline::Builder()
 		.addShaderStage("shaders/skybox.vert.spv")
 		.addShaderStage("shaders/skybox.frag.spv")
 		.setVertexInfo(Vertex::getBindingDescription(), Vertex::getAttributeDescriptions())
-		.addAttachment(m_engine->getSwapColourFormat())
+		.addAttachment(VulkanEngine::getSwapColourFormat())
 		.setSamples(m_samples)
 		.disableDepthTest()
 		.addBinding(0, 0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex)
@@ -165,31 +162,31 @@ void Renderer3D::createPipelines() {
 }
 
 void Renderer3D::createDepthBuffer() {
-	std::tie(m_depthBuffer, m_depthBufferMemory) = m_engine->createImage({
+	std::tie(m_depthBuffer, m_depthBufferMemory) = VulkanEngine::createImage({
 		.width = m_extent.width,
 		.height = m_extent.height,
-		.format = m_engine->getDepthFormat(),
+		.format = VulkanEngine::getDepthFormat(),
 		.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
 		.samples = m_samples
 	});
 
-	m_depthBufferImage = m_engine->createImageView(m_depthBuffer, m_engine->getDepthFormat(), vk::ImageAspectFlagBits::eDepth);
+	m_depthBufferImage = VulkanEngine::createImageView(m_depthBuffer, VulkanEngine::getDepthFormat(), vk::ImageAspectFlagBits::eDepth);
 }
 
 void Renderer3D::createColourBuffer() {
-	std::tie(m_colourImage, m_colourImageMemory) = m_engine->createImage({
+	std::tie(m_colourImage, m_colourImageMemory) = VulkanEngine::createImage({
 		.width = m_extent.width,
 		.height = m_extent.height,
-		.format = m_engine->getSwapColourFormat(),
+		.format = VulkanEngine::getSwapColourFormat(),
 		.usage = vk::ImageUsageFlagBits::eColorAttachment,
 		.samples = m_samples
 	});
 
-	m_colourImageView = m_engine->createImageView(m_colourImage, m_engine->getSwapColourFormat(), vk::ImageAspectFlagBits::eColor);
+	m_colourImageView = VulkanEngine::createImageView(m_colourImage, VulkanEngine::getSwapColourFormat(), vk::ImageAspectFlagBits::eColor);
 }
 
 void Renderer3D::beginRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image, const vk::ImageView& imageView) const {
-	m_engine->transitionImageLayout(commandBuffer, {image, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal});
+	VulkanEngine::transitionImageLayout(commandBuffer, {image, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal});
 	vk::RenderingAttachmentInfo colourAttachment = {
 		.imageView = imageView,
 		.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
@@ -318,12 +315,12 @@ void Renderer3D::drawSkybox(const vk::raii::CommandBuffer &commandBuffer) {
 
 	commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_skyboxPipeline->getPipeline());
 	commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_skyboxPipeline->getLayout(), FRAME_SET_NUMBER, {m_skyboxDescriptor}, nullptr);
-	m_engine->getAssetManager()->getUnitCube()->draw(commandBuffer);
+	VulkanEngine::getAssetManager()->getUnitCube()->draw(commandBuffer);
 }
 
 void Renderer3D::endRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image) const {
 	commandBuffer.endRendering();
-	m_engine->transitionImageLayout(commandBuffer, {image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR});
+	VulkanEngine::transitionImageLayout(commandBuffer, {image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR});
 }
 
 void Renderer3D::highlightEntity(ECS::Entity entity) {
