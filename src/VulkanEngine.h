@@ -54,40 +54,43 @@ struct QueueFamilyIndices {
 
 class VulkanEngine {
 public:
-	void run();
-	DebugWindow* getDebugWindow() const;
+	static void run();
+	static DebugWindow* getDebugWindow();
+	static GLFWwindow* getWindow();
 	FrameTimeInfo getFrameTimeInfo();
 	VRAMUsageInfo getVramUsage() const;
-	const vk::raii::Instance& getInstance() const;
-	const vk::raii::Queue& getGraphicsQueue() const;
-	const vk::raii::Device& getDevice() const;
-	const vk::raii::PhysicalDevice& getPhysicalDevice() const;
-	const vk::raii::DescriptorPool& getDescriptorPool() const;
-	Renderer3D *getRenderer() const;
-	AssetManager* getAssetManager() const;
-	void setPresentMode(vk::PresentModeKHR mode);
-	vk::PresentModeKHR getPresentMode() const;
+	static const vk::raii::Instance& getInstance();
+	static const vk::raii::Queue& getGraphicsQueue();
+	static const vk::raii::Device& getDevice();
+	static const vk::raii::PhysicalDevice& getPhysicalDevice();
+	static const vk::raii::DescriptorPool& getDescriptorPool();
+	static Renderer3D *getRenderer();
+	static AssetManager* getAssetManager();
+	static void setPresentMode(vk::PresentModeKHR mode);
+	static vk::PresentModeKHR getPresentMode();
 
-	vk::Format getSwapColourFormat();
-	vk::Format getDepthFormat();
+	static vk::Format getSwapColourFormat();
+	static vk::Format getDepthFormat();
 
-	void queueSwapRecreation();
-	void queueRendererRebuild();
-	void setWindowSize(u32 width, u32 height) const;
-	std::pair<u32, u32> getWindowSize() const;
+	static void queueSwapRecreation();
+	static void queueRendererRebuild();
+	static void setWindowSize(u32 width, u32 height);
+	static std::pair<u32, u32> getWindowSize();
 
-	void addUpdateListener(IUpdatable* updatable);
+	static void addUpdateListener(IUpdatable* updatable);
 
-	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const;
-	void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const;
-	std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(const ImageCreateInfo& info) const;
-	vk::raii::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags, u32 mips = 1) const;
+	static std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties);
+	static void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size);
+	static std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(const ImageCreateInfo& info);
+	static vk::raii::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags, u32 mips = 1);
 	// This function will create a new command buffer and block until completion - probably want to use the overloaded version with commandBuffer input for a non-blocking version
-	void transitionImageLayout(const ImageTransitionInfo &info) const;
-	void transitionImageLayout(const vk::raii::CommandBuffer &commandBuffer, const ImageTransitionInfo &info) const;
+	static void transitionImageLayout(const ImageTransitionInfo &info);
+	static void transitionImageLayout(const vk::raii::CommandBuffer &commandBuffer, const ImageTransitionInfo &info);
 
-	vk::raii::CommandBuffer beginSingleCommand() const;
-	void endSingleCommand(const vk::raii::CommandBuffer& commandBuffer) const;
+	static vk::raii::CommandBuffer beginSingleCommand();
+	static void endSingleCommand(const vk::raii::CommandBuffer& commandBuffer);
+
+	static VulkanEngine& get();
 
 private:
 	void initWindow();
@@ -123,6 +126,8 @@ private:
 	void recreateSwapChain();
 
 	void cleanup() const;
+
+	static VulkanEngine s_engine;
 
 	float m_deltaTime = 1.0f / 120.0f;
 

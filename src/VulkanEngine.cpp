@@ -51,16 +51,21 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(
 }
 
 void VulkanEngine::run() {
-	initWindow();
-	initVulkan();
-	initECS();
-	createScene();
-	mainLoop();
-	cleanup();
+	VulkanEngine& e = get();
+	e.initWindow();
+	e.initVulkan();
+	e.initECS();
+	e.createScene();
+	e.mainLoop();
+	e.cleanup();
 }
 
-DebugWindow* VulkanEngine::getDebugWindow() const {
-	return m_debugWindow.get();
+DebugWindow* VulkanEngine::getDebugWindow() {
+	return get().m_debugWindow.get();
+}
+
+GLFWwindow * VulkanEngine::getWindow() {
+	return get().m_window;
 }
 
 FrameTimeInfo VulkanEngine::getFrameTimeInfo() {
@@ -93,41 +98,41 @@ VRAMUsageInfo VulkanEngine::getVramUsage() const {
 	return info;
 }
 
-const vk::raii::Instance & VulkanEngine::getInstance() const {
-	return m_instance;
+const vk::raii::Instance & VulkanEngine::getInstance() {
+	return get().m_instance;
 }
 
-const vk::raii::Queue & VulkanEngine::getGraphicsQueue() const {
-	return m_graphicsQueue;
+const vk::raii::Queue & VulkanEngine::getGraphicsQueue() {
+	return get().m_graphicsQueue;
 }
 
-const vk::raii::Device & VulkanEngine::getDevice() const {
-	return m_device;
+const vk::raii::Device & VulkanEngine::getDevice() {
+	return get().m_device;
 }
 
-const vk::raii::PhysicalDevice & VulkanEngine::getPhysicalDevice() const {
-	return m_physicalDevice;
+const vk::raii::PhysicalDevice & VulkanEngine::getPhysicalDevice() {
+	return get().m_physicalDevice;
 }
 
-const vk::raii::DescriptorPool & VulkanEngine::getDescriptorPool() const {
-	return m_descriptorPool;
+const vk::raii::DescriptorPool & VulkanEngine::getDescriptorPool() {
+	return get().m_descriptorPool;
 }
 
-Renderer3D* VulkanEngine::getRenderer() const {
-	return m_renderer;
+Renderer3D* VulkanEngine::getRenderer() {
+	return get().m_renderer;
 }
 
-AssetManager * VulkanEngine::getAssetManager() const {
-	return m_assetManager.get();
+AssetManager * VulkanEngine::getAssetManager() {
+	return get().m_assetManager.get();
 }
 
 void VulkanEngine::setPresentMode(vk::PresentModeKHR mode) {
-	m_presentMode = mode;
+	get().m_presentMode = mode;
 	queueSwapRecreation();
 }
 
-vk::PresentModeKHR VulkanEngine::getPresentMode() const {
-	return m_presentMode;
+vk::PresentModeKHR VulkanEngine::getPresentMode() {
+	return get().m_presentMode;
 }
 
 vk::Format VulkanEngine::getSwapColourFormat() {
@@ -139,29 +144,29 @@ vk::Format VulkanEngine::getDepthFormat() {
 }
 
 void VulkanEngine::queueSwapRecreation() {
-	m_shouldRecreateSwap = true;
+	get().m_shouldRecreateSwap = true;
 }
 
 void VulkanEngine::queueRendererRebuild() {
-	m_shouldRebuildRenderer = true;
+	get().m_shouldRebuildRenderer = true;
 }
 
-void VulkanEngine::setWindowSize(const u32 width, const u32 height) const {
-	glfwSetWindowSize(m_window, static_cast<i32>(width), static_cast<i32>(height));
+void VulkanEngine::setWindowSize(const u32 width, const u32 height) {
+	glfwSetWindowSize(getWindow(), static_cast<i32>(width), static_cast<i32>(height));
 	const auto newSize = getWindowSize();
 	if (newSize.first != width || newSize.second != height) {
 		Logger::warn("Unable to resize window to requested size");
 	}
 }
 
-std::pair<u32, u32> VulkanEngine::getWindowSize() const {
+std::pair<u32, u32> VulkanEngine::getWindowSize() {
 	int width, height;
-	glfwGetWindowSize(m_window, &width, &height);
+	glfwGetWindowSize(get().m_window, &width, &height);
 	return { static_cast<u32>(width), static_cast<u32>(height) };
 }
 
 void VulkanEngine::addUpdateListener(IUpdatable *updatable) {
-	m_updatables.push_back(updatable);
+	get().m_updatables.push_back(updatable);
 }
 
 void VulkanEngine::initWindow() {
@@ -525,7 +530,7 @@ vk::Extent2D VulkanEngine::chooseExtent(const vk::SurfaceCapabilitiesKHR& capabi
 	return extent;
 }
 
-vk::raii::ImageView VulkanEngine::createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags, u32 mips) const {
+vk::raii::ImageView VulkanEngine::createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags, u32 mips) {
 	vk::ImageViewCreateInfo createInfo = {
 		.image = image,
 		.viewType = vk::ImageViewType::e2D,
@@ -539,10 +544,10 @@ vk::raii::ImageView VulkanEngine::createImageView(vk::Image image, vk::Format fo
 		}
 	};
 
-	return vk::raii::ImageView(m_device, createInfo);
+	return vk::raii::ImageView(get().m_device, createInfo);
 }
 
-void VulkanEngine::copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) const {
+void VulkanEngine::copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) {
 	vk::raii::CommandBuffer commandBuffer = beginSingleCommand();
 
 	vk::BufferCopy copyRegion{.size = size};
@@ -551,13 +556,13 @@ void VulkanEngine::copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize siz
 	endSingleCommand(commandBuffer);
 }
 
-void VulkanEngine::transitionImageLayout(const ImageTransitionInfo& info) const {
+void VulkanEngine::transitionImageLayout(const ImageTransitionInfo& info) {
 	const auto commandBuffer = beginSingleCommand();
 	transitionImageLayout(commandBuffer, info);
 	endSingleCommand(commandBuffer);
 }
 
-void VulkanEngine::transitionImageLayout(const vk::raii::CommandBuffer &commandBuffer, const ImageTransitionInfo& info) const {
+void VulkanEngine::transitionImageLayout(const vk::raii::CommandBuffer &commandBuffer, const ImageTransitionInfo& info) {
 	vk::PipelineStageFlags srcStage;
 	vk::PipelineStageFlags dstStage;
 	vk::AccessFlags srcAccess;
@@ -616,7 +621,7 @@ void VulkanEngine::transitionImageLayout(const vk::raii::CommandBuffer &commandB
 	commandBuffer.pipelineBarrier(srcStage, dstStage, {}, nullptr, nullptr, barrier);
 }
 
-std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> VulkanEngine::createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) const {
+std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> VulkanEngine::createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) {
 	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> result = {nullptr, nullptr};
 	// create buffer
 	vk::BufferCreateInfo createInfo{
@@ -624,22 +629,22 @@ std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> VulkanEngine::createBuffer(v
 		.usage = usage,
 		.sharingMode = vk::SharingMode::eExclusive
 	};
-	result.first = vk::raii::Buffer(m_device, createInfo);
+	result.first = vk::raii::Buffer(get().m_device, createInfo);
 
 	// allocate memory
 	vk::MemoryRequirements memReqs = result.first.getMemoryRequirements();
 	vk::MemoryAllocateInfo allocInfo = {
 		.allocationSize = memReqs.size,
-		.memoryTypeIndex = findMemoryType(memReqs.memoryTypeBits, properties)
+		.memoryTypeIndex = get().findMemoryType(memReqs.memoryTypeBits, properties)
 	};
-	result.second = m_device.allocateMemory(allocInfo);
+	result.second = getDevice().allocateMemory(allocInfo);
 
 	// bind memory
 	result.first.bindMemory(result.second, 0);
 	return result;
 }
 
-std::pair<vk::raii::Image, vk::raii::DeviceMemory> VulkanEngine::createImage(const ImageCreateInfo& info) const {
+std::pair<vk::raii::Image, vk::raii::DeviceMemory> VulkanEngine::createImage(const ImageCreateInfo& info) {
 	std::pair<vk::raii::Image, vk::raii::DeviceMemory> result = {nullptr, nullptr};
 
 	vk::ImageCreateInfo imageInfo = {
@@ -660,21 +665,21 @@ std::pair<vk::raii::Image, vk::raii::DeviceMemory> VulkanEngine::createImage(con
 		.initialLayout = vk::ImageLayout::eUndefined
 	};
 
-	result.first = vk::raii::Image(m_device, imageInfo);
+	result.first = vk::raii::Image(getDevice(), imageInfo);
 
 	vk::MemoryRequirements memoryRequirements = result.first.getMemoryRequirements();
 	vk::MemoryAllocateInfo allocInfo = {
 		.allocationSize = memoryRequirements.size,
-		.memoryTypeIndex = findMemoryType(memoryRequirements.memoryTypeBits, info.properties)
+		.memoryTypeIndex = get().findMemoryType(memoryRequirements.memoryTypeBits, info.properties)
 	};
 
-	result.second = m_device.allocateMemory(allocInfo);
+	result.second = getDevice().allocateMemory(allocInfo);
 	result.first.bindMemory(result.second, 0);
 
 	return result;
 }
 
-u32 VulkanEngine::findMemoryType(u32 typeFilter, vk::MemoryPropertyFlags properties) const {
+u32 VulkanEngine::findMemoryType(const u32 typeFilter, const vk::MemoryPropertyFlags properties) const {
 	auto const memProperties = m_physicalDevice.getMemoryProperties();
 	for (u32 i = 0; i < memProperties.memoryTypeCount; i++) {
 		if (typeFilter & (1 << i) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
@@ -685,14 +690,14 @@ u32 VulkanEngine::findMemoryType(u32 typeFilter, vk::MemoryPropertyFlags propert
 	throw std::runtime_error("Failed to find suitable memory type!");
 }
 
-vk::raii::CommandBuffer VulkanEngine::beginSingleCommand() const {
+vk::raii::CommandBuffer VulkanEngine::beginSingleCommand() {
 	vk::CommandBufferAllocateInfo allocInfo = {
-		.commandPool = m_commandPool,
+		.commandPool = get().m_commandPool,
 		.level = vk::CommandBufferLevel::ePrimary,
 		.commandBufferCount = 1
 	};
 
-	vk::raii::CommandBuffer commandBuffer = std::move(m_device.allocateCommandBuffers(allocInfo).front());
+	vk::raii::CommandBuffer commandBuffer = std::move(getDevice().allocateCommandBuffers(allocInfo).front());
 
 	vk::CommandBufferBeginInfo beginInfo{
 		.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit
@@ -703,14 +708,18 @@ vk::raii::CommandBuffer VulkanEngine::beginSingleCommand() const {
 	return commandBuffer;
 }
 
-void VulkanEngine::endSingleCommand(const vk::raii::CommandBuffer &commandBuffer) const {
+void VulkanEngine::endSingleCommand(const vk::raii::CommandBuffer &commandBuffer) {
 	commandBuffer.end();
 	vk::SubmitInfo submitInfo = {
 		.commandBufferCount = 1,
 		.pCommandBuffers = &*commandBuffer
 	};
-	m_graphicsQueue.submit(submitInfo);
-	m_graphicsQueue.waitIdle();
+	getGraphicsQueue().submit(submitInfo);
+	getGraphicsQueue().waitIdle();
+}
+
+VulkanEngine & VulkanEngine::get() {
+	return s_engine;
 }
 
 void VulkanEngine::mainLoop() {
@@ -823,11 +832,12 @@ void VulkanEngine::cleanup() const {
 	ECS::destroy();
 }
 
+
+VulkanEngine VulkanEngine::s_engine {};
 int main() {
 	VULKAN_HPP_DEFAULT_DISPATCHER.init();
 	try {
-		VulkanEngine app;
-		app.run();
+		VulkanEngine::get().run();
 	}
 	catch (const std::exception& e) {
 		std::cerr << e.what() << std::endl;
