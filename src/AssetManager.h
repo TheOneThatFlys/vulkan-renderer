@@ -2,8 +2,6 @@
 
 #include <tiny_gltf.h>
 
-#include <vulkan/vulkan_raii.hpp>
-
 #include "Common.h"
 #include "ECS.h"
 #include "Mesh.h"

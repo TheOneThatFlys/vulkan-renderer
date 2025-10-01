@@ -4,8 +4,6 @@
 
 #include "Common.h"
 
-class VulkanEngine;
-
 class Skybox {
 public:
     Skybox(const std::array<unsigned char*, 6>& pixels, u32 width, u32 height, vk::Format format = vk::Format::eR8G8B8A8Srgb);

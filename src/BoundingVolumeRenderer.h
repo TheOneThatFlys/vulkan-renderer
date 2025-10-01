@@ -7,7 +7,6 @@
 #include "Pipeline.h"
 #include "UniformBufferBlock.h"
 
-class VulkanEngine;
 class BoundingVolumeRenderer {
 public:
     explicit BoundingVolumeRenderer(const Renderer3D* parentRenderer);

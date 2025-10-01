@@ -3,7 +3,6 @@
 #include "ECS.h"
 #include "Components.h"
 
-
 class LightSystem : public ECS::System {
 public:
     struct PointLightFragData {

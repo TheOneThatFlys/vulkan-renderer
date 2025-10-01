@@ -8,8 +8,6 @@
 #include "Vertex.h"
 #include "Volumes.h"
 
-class VulkanEngine;
-
 template<typename V>
 concept ValidVertex = requires (V v) {
     { v.pos } -> std::same_as<glm::vec3&>;

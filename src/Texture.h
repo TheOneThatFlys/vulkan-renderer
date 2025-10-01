@@ -2,7 +2,6 @@
 
 #include <vulkan/vulkan_raii.hpp>
 #include "Common.h"
-class VulkanEngine;
 
 struct SamplerInfo {
     vk::Filter minFilter = vk::Filter::eNearest;

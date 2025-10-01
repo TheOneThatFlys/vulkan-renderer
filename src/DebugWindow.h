@@ -1,10 +1,8 @@
 #pragma once
 
-#include <imgui.h>
 #include <unordered_map>
 
 #include <glm/glm.hpp>
-#include <GLFW/glfw3.h>
 #include <vulkan/vulkan_raii.hpp>
 
 #include "Common.h"
@@ -18,7 +16,6 @@ enum DebugFlags {
     eDisplayBoundingVolume
 };
 
-class VulkanEngine;
 class DebugWindow {
 public:
     DebugWindow();

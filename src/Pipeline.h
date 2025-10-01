@@ -4,7 +4,6 @@
 #include <vulkan/vulkan_raii.hpp>
 #include "Common.h"
 
-class VulkanEngine;
 class Pipeline {
 public:
     class Builder {

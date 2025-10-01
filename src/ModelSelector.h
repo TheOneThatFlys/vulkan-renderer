@@ -6,9 +6,6 @@
 #include "ECS.h"
 #include "UniformBufferBlock.h"
 
-class VulkanEngine;
-class Pipeline;
-
 class ModelSelector : public IUpdatable {
 public:
     explicit ModelSelector(vk::Extent2D extent);

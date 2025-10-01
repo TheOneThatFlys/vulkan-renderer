@@ -8,8 +8,7 @@
 #include "UniformBufferBlock.h"
 #include "BoundingVolumeRenderer.h"
 #include "ModelSelector.h"
-
-class Skybox;
+#include "Skybox.h"
 
 struct FrameUniforms {
     glm::mat4 view;
