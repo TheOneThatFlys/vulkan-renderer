@@ -42,13 +42,8 @@ private:
 
     std::unique_ptr<Pipeline> m_pipeline;
 
-    vk::raii::Image m_colourImage = nullptr;
-    vk::raii::DeviceMemory m_colourImageMemory = nullptr;
-    vk::raii::ImageView m_colourImageView = nullptr;
-
-    vk::raii::Image m_depthImage = nullptr;
-    vk::raii::DeviceMemory m_depthImageMemory = nullptr;
-    vk::raii::ImageView m_depthImageView = nullptr;
+    std::unique_ptr<Image> m_colorImage;
+    std::unique_ptr<Image> m_depthImage;
 
     vk::raii::Buffer m_outputBuffer = nullptr;
     vk::raii::DeviceMemory m_outputBufferMemory = nullptr;

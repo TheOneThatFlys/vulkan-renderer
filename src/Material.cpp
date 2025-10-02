@@ -17,7 +17,7 @@ Material::Material(const Texture *base, const Texture *metallicRoughness, const 
     for (u32 i = 0; i < textures.size(); ++i) {
         imageInfos.at(i) = {
             .sampler = textures.at(i)->getSampler(),
-            .imageView = textures.at(i)->getImageView(),
+            .imageView = textures.at(i)->getImage().getView(),
             .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
         };
 

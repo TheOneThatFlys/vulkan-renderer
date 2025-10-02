@@ -17,20 +17,20 @@ Skybox::Skybox(const std::array<unsigned char *, 6> &pixels, const u32 width, co
     }
     stagingBufferMemory.unmapMemory();
 
-    std::tie(m_image, m_imageMemory) = VulkanEngine::createImage({
+    m_image = std::make_unique<Image>(ImageCreateInfo{
         .width = width,
         .height = height,
         .format = format,
         .usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
         .properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
         .arrayLayers = 6,
+        .viewType = vk::ImageViewType::eCube,
         .flags = vk::ImageCreateFlagBits::eCubeCompatible
     });
 
     const auto commandBuffer = VulkanEngine::beginSingleCommand();
 
-    VulkanEngine::transitionImageLayout(commandBuffer, {
-        .image = m_image,
+    m_image->changeLayout(commandBuffer, {
         .oldLayout = vk::ImageLayout::eUndefined,
         .newLayout = vk::ImageLayout::eTransferDstOptimal,
         .arrayLayers = 6
@@ -51,30 +51,14 @@ Skybox::Skybox(const std::array<unsigned char *, 6> &pixels, const u32 width, co
         .imageExtent = {width, height, 1}
     };
 
-    commandBuffer.copyBufferToImage(stagingBuffer, m_image, vk::ImageLayout::eTransferDstOptimal, copyRegion);
+    commandBuffer.copyBufferToImage(stagingBuffer, m_image->getImage(), vk::ImageLayout::eTransferDstOptimal, copyRegion);
 
-    VulkanEngine::transitionImageLayout(commandBuffer, {
-        .image = m_image,
+    m_image->changeLayout(commandBuffer, {
         .oldLayout = vk::ImageLayout::eTransferDstOptimal,
         .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
         .arrayLayers = 6
     });
     VulkanEngine::endSingleCommand(commandBuffer);
-
-    vk::ImageViewCreateInfo createInfo = {
-        .image = m_image,
-        .viewType = vk::ImageViewType::eCube,
-        .format = format,
-        .subresourceRange = {
-            .aspectMask = vk::ImageAspectFlagBits::eColor,
-            .baseMipLevel = 0,
-            .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 6
-        }
-    };
-
-    m_imageView = vk::raii::ImageView(VulkanEngine::getDevice(), createInfo);
 
     vk::SamplerCreateInfo samplerCreateInfo = {
         .magFilter = vk::Filter::eLinear,
@@ -99,7 +83,7 @@ Skybox::Skybox(const std::array<unsigned char *, 6> &pixels, const u32 width, co
 void Skybox::addToSet(const vk::raii::DescriptorSet &set, const u32 binding) const {
     const vk::DescriptorImageInfo imageInfo = {
         .sampler = m_sampler,
-        .imageView = m_imageView,
+        .imageView = m_image->getView(),
         .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
     };
 
@@ -114,12 +98,8 @@ void Skybox::addToSet(const vk::raii::DescriptorSet &set, const u32 binding) con
     VulkanEngine::getDevice().updateDescriptorSets(writeInfo, nullptr);
 }
 
-const vk::raii::Image & Skybox::getImage() const {
-    return m_image;
-}
-
-const vk::raii::ImageView & Skybox::getImageView() const {
-    return m_imageView;
+const Image & Skybox::getImage() const {
+    return *m_image;
 }
 
 const vk::raii::Sampler & Skybox::getSampler() const {

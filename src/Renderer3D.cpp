@@ -16,8 +16,7 @@ Renderer3D::Renderer3D(const vk::Extent2D extent)
 	, m_modelSelector(std::make_unique<ModelSelector>(m_extent))
 {
 	createPipelines();
-	createDepthBuffer();
-	createColourBuffer();
+	createAttachments();
 
 	m_frameDescriptor = m_pipeline->createDescriptorSet(FRAME_SET_NUMBER);
 	m_modelDescriptor = m_pipeline->createDescriptorSet(MODEL_SET_NUMBER);
@@ -67,8 +66,7 @@ const Pipeline * Renderer3D::getPipeline() const {
 }
 
 void Renderer3D::rebuild() {
-	createDepthBuffer();
-	createColourBuffer();
+	createAttachments();
 	createPipelines();
 	VulkanEngine::getDebugWindow()->rebuild();
 	m_boundingVolumeRenderer->rebuild();
@@ -77,8 +75,7 @@ void Renderer3D::rebuild() {
 void Renderer3D::setExtent(vk::Extent2D extent) {
 	m_extent = extent;
 	ECS::getComponent<ControlledCamera>(m_camera).aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
-	createDepthBuffer();
-	createColourBuffer();
+	createAttachments();
 	m_modelSelector->setExtent(extent);
 }
 
@@ -161,32 +158,27 @@ void Renderer3D::createPipelines() {
 		.create();
 }
 
-void Renderer3D::createDepthBuffer() {
-	std::tie(m_depthBuffer, m_depthBufferMemory) = VulkanEngine::createImage({
+void Renderer3D::createAttachments() {
+	m_depthImage = std::make_unique<Image>(ImageCreateInfo{
 		.width = m_extent.width,
 		.height = m_extent.height,
 		.format = VulkanEngine::getDepthFormat(),
 		.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
-		.samples = m_samples
+		.aspect = vk::ImageAspectFlagBits::eDepth,
+		.samples = m_samples,
 	});
 
-	m_depthBufferImage = VulkanEngine::createImageView(m_depthBuffer, VulkanEngine::getDepthFormat(), vk::ImageAspectFlagBits::eDepth);
-}
-
-void Renderer3D::createColourBuffer() {
-	std::tie(m_colourImage, m_colourImageMemory) = VulkanEngine::createImage({
+	m_colorImage = std::make_unique<Image>(ImageCreateInfo{
 		.width = m_extent.width,
 		.height = m_extent.height,
 		.format = VulkanEngine::getSwapColourFormat(),
 		.usage = vk::ImageUsageFlagBits::eColorAttachment,
 		.samples = m_samples
 	});
-
-	m_colourImageView = VulkanEngine::createImageView(m_colourImage, VulkanEngine::getSwapColourFormat(), vk::ImageAspectFlagBits::eColor);
 }
 
 void Renderer3D::beginRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image, const vk::ImageView& imageView) const {
-	VulkanEngine::transitionImageLayout(commandBuffer, {image, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal});
+	Image::changeLayout(commandBuffer, image, {vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal});
 	vk::RenderingAttachmentInfo colourAttachment = {
 		.imageView = imageView,
 		.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
@@ -195,7 +187,7 @@ void Renderer3D::beginRender(const vk::raii::CommandBuffer& commandBuffer, const
 		.clearValue = vk::ClearColorValue(0.0f, 0.0f, 0.0f, 0.0f),
 	};
 	if (m_samples != vk::SampleCountFlagBits::e1) {
-		colourAttachment.imageView = m_colourImageView;
+		colourAttachment.imageView = m_colorImage->getView();
 		colourAttachment.resolveMode = vk::ResolveModeFlagBits::eAverage;
 		colourAttachment.resolveImageView = imageView;
 		colourAttachment.resolveImageLayout = vk::ImageLayout::eColorAttachmentOptimal;
@@ -204,7 +196,7 @@ void Renderer3D::beginRender(const vk::raii::CommandBuffer& commandBuffer, const
 	const std::array attachments = { colourAttachment };
 
 	vk::RenderingAttachmentInfo depthAttachment = {
-		.imageView = m_depthBufferImage,
+		.imageView = m_depthImage->getView(),
 		.imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
 		.loadOp = vk::AttachmentLoadOp::eClear,
 		.storeOp = vk::AttachmentStoreOp::eDontCare,
@@ -320,7 +312,7 @@ void Renderer3D::drawSkybox(const vk::raii::CommandBuffer &commandBuffer) {
 
 void Renderer3D::endRender(const vk::raii::CommandBuffer& commandBuffer, const vk::Image& image) const {
 	commandBuffer.endRendering();
-	VulkanEngine::transitionImageLayout(commandBuffer, {image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR});
+	Image::changeLayout(commandBuffer, image, {vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR});
 }
 
 void Renderer3D::highlightEntity(ECS::Entity entity) {

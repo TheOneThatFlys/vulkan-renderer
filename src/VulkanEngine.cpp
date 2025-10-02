@@ -362,8 +362,20 @@ void VulkanEngine::createSwapChain() {
 	m_swapChain = vk::raii::SwapchainKHR(m_device, createInfo);
 
 	// create image views
+	vk::ImageViewCreateInfo viewInfo = {
+		.viewType = vk::ImageViewType::e2D,
+		.format = getSwapColourFormat(),
+		.subresourceRange = {
+			.aspectMask = vk::ImageAspectFlagBits::eColor,
+			.baseMipLevel = 0,
+			.levelCount = 1,
+			.baseArrayLayer = 0,
+			.layerCount = 1
+		}
+	};
 	for (const auto& image : m_swapChain.getImages()) {
-		m_swapImageViews.push_back(createImageView(image, getSwapColourFormat(), vk::ImageAspectFlagBits::eColor));
+		viewInfo.image = image;
+		m_swapImageViews.emplace_back(getDevice(), viewInfo);
 	}
 }
 
@@ -530,24 +542,7 @@ vk::Extent2D VulkanEngine::chooseExtent(const vk::SurfaceCapabilitiesKHR& capabi
 	return extent;
 }
 
-vk::raii::ImageView VulkanEngine::createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags, u32 mips) {
-	vk::ImageViewCreateInfo createInfo = {
-		.image = image,
-		.viewType = vk::ImageViewType::e2D,
-		.format = format,
-		.subresourceRange = {
-			.aspectMask = aspectFlags,
-			.baseMipLevel = 0,
-			.levelCount = mips,
-			.baseArrayLayer = 0,
-			.layerCount = 1
-		}
-	};
-
-	return vk::raii::ImageView(get().m_device, createInfo);
-}
-
-void VulkanEngine::copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) {
+void VulkanEngine::copyBuffer(const vk::Buffer src, const vk::Buffer dst, const vk::DeviceSize size) {
 	vk::raii::CommandBuffer commandBuffer = beginSingleCommand();
 
 	vk::BufferCopy copyRegion{.size = size};
@@ -556,138 +551,32 @@ void VulkanEngine::copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize siz
 	endSingleCommand(commandBuffer);
 }
 
-void VulkanEngine::transitionImageLayout(const ImageTransitionInfo& info) {
-	const auto commandBuffer = beginSingleCommand();
-	transitionImageLayout(commandBuffer, info);
-	endSingleCommand(commandBuffer);
-}
-
-void VulkanEngine::transitionImageLayout(const vk::raii::CommandBuffer &commandBuffer, const ImageTransitionInfo& info) {
-	vk::PipelineStageFlags srcStage;
-	vk::PipelineStageFlags dstStage;
-	vk::AccessFlags srcAccess;
-	vk::AccessFlags dstAccess;
-
-	if (info.oldLayout == vk::ImageLayout::eUndefined && info.newLayout == vk::ImageLayout::eTransferDstOptimal) {
-		srcAccess = {};
-		dstAccess = vk::AccessFlagBits::eTransferWrite;
-		srcStage = vk::PipelineStageFlagBits::eTopOfPipe;
-		dstStage = vk::PipelineStageFlagBits::eTransfer;
-	}
-	else if (info.oldLayout == vk::ImageLayout::eTransferDstOptimal && info.newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
-		srcAccess = vk::AccessFlagBits::eTransferWrite;
-		dstAccess = vk::AccessFlagBits::eShaderRead;
-		srcStage = vk::PipelineStageFlagBits::eTransfer;
-		dstStage = vk::PipelineStageFlagBits::eFragmentShader;
-	}
-	else if (info.oldLayout == vk::ImageLayout::eColorAttachmentOptimal && info.newLayout == vk::ImageLayout::ePresentSrcKHR) {
-		srcAccess = vk::AccessFlagBits::eColorAttachmentWrite;
-		dstAccess = {};
-		srcStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-		dstStage = vk::PipelineStageFlagBits::eBottomOfPipe;
-	}
-	else if (info.oldLayout == vk::ImageLayout::eUndefined && info.newLayout == vk::ImageLayout::eColorAttachmentOptimal) {
-		srcAccess = {};
-		dstAccess = vk::AccessFlagBits::eColorAttachmentWrite;
-		srcStage = vk::PipelineStageFlagBits::eTopOfPipe;
-		dstStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-	}
-	else if (info.oldLayout == vk::ImageLayout::eColorAttachmentOptimal && info.newLayout == vk::ImageLayout::eTransferSrcOptimal) {
-		srcAccess = vk::AccessFlagBits::eColorAttachmentWrite;
-		dstAccess = vk::AccessFlagBits::eTransferRead;
-		srcStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-		dstStage = vk::PipelineStageFlagBits::eTransfer;
-	}
-	else {
-		throw std::invalid_argument("Layout transition not supported");
-	}
-
-	vk::ImageMemoryBarrier barrier = {
-		.srcAccessMask = srcAccess,
-		.dstAccessMask = dstAccess,
-		.oldLayout = info.oldLayout,
-		.newLayout = info.newLayout,
-		.srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-		.dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-		.image = info.image,
-		.subresourceRange = {
-			.aspectMask = vk::ImageAspectFlagBits::eColor,
-			.baseMipLevel = 0,
-			.levelCount = info.mips,
-			.baseArrayLayer = 0,
-			.layerCount = info.arrayLayers
+vk::raii::DeviceMemory VulkanEngine::allocateMemory(const vk::MemoryRequirements& requirements, const vk::MemoryPropertyFlags properties) {
+	auto const memProperties = getPhysicalDevice().getMemoryProperties();
+	u32 typeIndex = 0;
+	for (u32 i = 0; i < memProperties.memoryTypeCount; i++) {
+		if (requirements.memoryTypeBits & 1 << i && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+			typeIndex = i;
 		}
+	}
+	const vk::MemoryAllocateInfo allocInfo = {
+		.allocationSize = requirements.size,
+		.memoryTypeIndex = typeIndex
 	};
-	commandBuffer.pipelineBarrier(srcStage, dstStage, {}, nullptr, nullptr, barrier);
+	return getDevice().allocateMemory(allocInfo);
 }
 
 std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> VulkanEngine::createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) {
 	std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> result = {nullptr, nullptr};
-	// create buffer
-	vk::BufferCreateInfo createInfo{
+	const vk::BufferCreateInfo createInfo{
 		.size = size,
 		.usage = usage,
 		.sharingMode = vk::SharingMode::eExclusive
 	};
 	result.first = vk::raii::Buffer(get().m_device, createInfo);
-
-	// allocate memory
-	vk::MemoryRequirements memReqs = result.first.getMemoryRequirements();
-	vk::MemoryAllocateInfo allocInfo = {
-		.allocationSize = memReqs.size,
-		.memoryTypeIndex = get().findMemoryType(memReqs.memoryTypeBits, properties)
-	};
-	result.second = getDevice().allocateMemory(allocInfo);
-
-	// bind memory
+	result.second = allocateMemory(result.first.getMemoryRequirements(), properties);
 	result.first.bindMemory(result.second, 0);
 	return result;
-}
-
-std::pair<vk::raii::Image, vk::raii::DeviceMemory> VulkanEngine::createImage(const ImageCreateInfo& info) {
-	std::pair<vk::raii::Image, vk::raii::DeviceMemory> result = {nullptr, nullptr};
-
-	vk::ImageCreateInfo imageInfo = {
-		.flags = info.flags,
-		.imageType = info.imageType,
-		.format = info.format,
-		.extent = {
-			.width = info.width,
-			.height = info.height,
-			.depth = info.depth
-		},
-		.mipLevels = info.mips,
-		.arrayLayers = info.arrayLayers,
-		.samples = info.samples,
-		.tiling = info.tiling,
-		.usage = info.usage,
-		.sharingMode = info.sharingMode,
-		.initialLayout = vk::ImageLayout::eUndefined
-	};
-
-	result.first = vk::raii::Image(getDevice(), imageInfo);
-
-	vk::MemoryRequirements memoryRequirements = result.first.getMemoryRequirements();
-	vk::MemoryAllocateInfo allocInfo = {
-		.allocationSize = memoryRequirements.size,
-		.memoryTypeIndex = get().findMemoryType(memoryRequirements.memoryTypeBits, info.properties)
-	};
-
-	result.second = getDevice().allocateMemory(allocInfo);
-	result.first.bindMemory(result.second, 0);
-
-	return result;
-}
-
-u32 VulkanEngine::findMemoryType(const u32 typeFilter, const vk::MemoryPropertyFlags properties) const {
-	auto const memProperties = m_physicalDevice.getMemoryProperties();
-	for (u32 i = 0; i < memProperties.memoryTypeCount; i++) {
-		if (typeFilter & (1 << i) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-			return i;
-		}
-	}
-
-	throw std::runtime_error("Failed to find suitable memory type!");
 }
 
 vk::raii::CommandBuffer VulkanEngine::beginSingleCommand() {

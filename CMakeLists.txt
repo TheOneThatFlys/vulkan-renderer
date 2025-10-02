@@ -47,6 +47,8 @@ add_executable (VulkanRenderer
         src/ModelSelector.h
         src/Skybox.cpp
         src/Skybox.h
+        src/Image.cpp
+        src/Image.h
 )
 
 target_compile_definitions(VulkanRenderer PUBLIC

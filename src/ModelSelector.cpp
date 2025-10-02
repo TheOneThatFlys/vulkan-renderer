@@ -9,7 +9,7 @@
 #include "Renderer3D.h"
 #include "VulkanEngine.h"
 
-ModelSelector::ModelSelector(const vk::Extent2D extent) : m_extent(extent), m_modelUniforms(ECS::MAX_ENTITIES) {
+ModelSelector::ModelSelector(const vk::Extent2D extent) : m_extent(extent) {
     m_pipeline = Pipeline::Builder()
         .addShaderStage("shaders/id.vert.spv")
         .addShaderStage("shaders/id.frag.spv")
@@ -72,17 +72,17 @@ ECS::Entity ModelSelector::calculateSelectedEntity() {
     const auto [winWidth, winHeight] = VulkanEngine::getWindowSize();
 
     auto commandBuffer = VulkanEngine::beginSingleCommand();
-    VulkanEngine::transitionImageLayout(commandBuffer, {m_colourImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal});
+    m_colorImage->changeLayout(commandBuffer, {vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal});
 
     const vk::RenderingAttachmentInfo colourAttachment = {
-        .imageView = m_colourImageView,
+        .imageView = m_colorImage->getView(),
         .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
         .loadOp = vk::AttachmentLoadOp::eClear,
         .storeOp = vk::AttachmentStoreOp::eStore,
         .clearValue = vk::ClearColorValue(*reinterpret_cast<const float*>(&ECS::NULL_ENTITY), 0.0f, 0.0f, 0.0f)
     };
     const vk::RenderingAttachmentInfo depthAttachment = {
-        .imageView = m_depthImageView,
+        .imageView = m_depthImage->getView(),
         .imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
         .loadOp = vk::AttachmentLoadOp::eClear,
         .storeOp = vk::AttachmentStoreOp::eDontCare,
@@ -143,12 +143,16 @@ ECS::Entity ModelSelector::calculateSelectedEntity() {
             const auto& model3D = ECS::getComponent<Model3D>(entity);
             model3D.mesh->draw(commandBuffer);
             ++i;
+            if (i == m_modelUniforms.getSize()) {
+                Logger::warn("Model selected detected more than the max configured number of entities ({})", m_modelUniforms.getSize());
+                break;
+            }
         }
     }
 
     commandBuffer.endRendering();
+    m_colorImage->changeLayout(commandBuffer, {vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal});
 
-    VulkanEngine::transitionImageLayout(commandBuffer, {m_colourImage, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal});
     const vk::BufferImageCopy region = {
         .bufferOffset = 0,
         .bufferRowLength = 0,
@@ -162,35 +166,33 @@ ECS::Entity ModelSelector::calculateSelectedEntity() {
         .imageOffset = {iMousePosition.x, iMousePosition.y, 0},
         .imageExtent = {1, 1, 1}
     };
-    commandBuffer.copyImageToBuffer(m_colourImage, vk::ImageLayout::eTransferSrcOptimal, m_outputBuffer, region);
-
+    commandBuffer.copyImageToBuffer(m_colorImage->getImage(), vk::ImageLayout::eTransferSrcOptimal, m_outputBuffer, region);
     VulkanEngine::endSingleCommand(commandBuffer);
 
     void* data = m_outputBufferMemory.mapMemory(0, m_outputBuffer.getMemoryRequirements().size);
-
+    ECS::Entity selected = *static_cast<ECS::Entity*>(data);
     m_outputBufferMemory.unmapMemory();
 
-    return *static_cast<ECS::Entity*>(data);
+    return selected;
 }
 
 void ModelSelector::createAttachments() {
-    std::tie(m_colourImage, m_colourImageMemory) = VulkanEngine::createImage({
+    m_colorImage = std::make_unique<Image>(ImageCreateInfo{
 		.width = m_extent.width,
 		.height = m_extent.height,
 		.format = getTextureFormat(),
 		.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc,
 	});
-    m_colourImageView = VulkanEngine::createImageView(m_colourImage, getTextureFormat(), vk::ImageAspectFlagBits::eColor);
 
-    std::tie(m_depthImage,m_depthImageMemory) = VulkanEngine::createImage({
+    m_depthImage = std::make_unique<Image>(ImageCreateInfo{
         .width = m_extent.width,
         .height = m_extent.height,
         .format = VulkanEngine::getDepthFormat(),
-        .usage = vk::ImageUsageFlagBits::eDepthStencilAttachment
+        .usage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
+        .aspect = vk::ImageAspectFlagBits::eDepth
     });
-    m_depthImageView = VulkanEngine::createImageView(m_depthImage, VulkanEngine::getDepthFormat(), vk::ImageAspectFlagBits::eDepth);
 
-    std::tie(m_outputBuffer, m_outputBufferMemory) = VulkanEngine::createBuffer(m_colourImage.getMemoryRequirements().size, vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
+    std::tie(m_outputBuffer, m_outputBufferMemory) = VulkanEngine::createBuffer(m_colorImage->getImage().getMemoryRequirements().size, vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
 }
 
 constexpr vk::Format ModelSelector::getTextureFormat() const {

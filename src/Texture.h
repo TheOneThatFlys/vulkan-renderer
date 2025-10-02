@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan_raii.hpp>
 #include "Common.h"
+#include "Image.h"
 
 struct SamplerInfo {
     vk::Filter minFilter = vk::Filter::eNearest;
@@ -23,15 +24,11 @@ public:
         const SamplerInfo& samplerInfo = {}
     );
 
-    const vk::raii::Image& getImage() const;
-    const vk::raii::DeviceMemory& getImageMemory() const;
-    const vk::raii::ImageView& getImageView() const;
+    const Image& getImage() const;
     const vk::raii::Sampler& getSampler() const;
 private:
     void generateMipmaps() const;
-    vk::raii::Image m_image = nullptr;
-    vk::raii::DeviceMemory m_imageMemory = nullptr;
-    vk::raii::ImageView m_imageView = nullptr;
+    std::unique_ptr<Image> m_image = nullptr;
     vk::raii::Sampler m_sampler = nullptr;
     u32 m_width, m_height, m_mips;
 };

@@ -5,8 +5,6 @@
 #include <array>
 #include <fstream>
 
-#include <vulkan/vulkan.hpp>
-
 #include "Logger.h"
 
 using u8 = std::uint8_t;
@@ -41,19 +39,19 @@ struct VRAMUsageInfo {
     size_t sharedUsed = 0;
 };
 
-inline std::string listify(std::vector<const char*> vs) {
+inline std::string listify(const std::vector<const char*>& vs) {
     std::string r;
     for (const auto& v : vs) {
         r += v + std::string(", ");
     }
-    if (r.length() == 0) return "";
+    if (r.empty()) return "";
     return r.substr(0, r.length ()- 2);
 }
 
 inline std::string storageSizeToString(size_t bytes) {
     static constexpr std::array units = {"B", "KB", "MB", "GB", "TB"};
 
-    double n = static_cast<double>(bytes);
+    auto n = static_cast<double>(bytes);
     int numDivisions = 0;
     while (n >= 1000) {
         n /= 1000.0f;
@@ -87,26 +85,4 @@ class IUpdatable {
 public:
     virtual ~IUpdatable() = default;
     virtual void update(float deltaTime) = 0;
-};
-
-struct ImageCreateInfo {
-    u32 width, height;
-    u32 depth = 1;
-    vk::Format format;
-    vk::ImageUsageFlags usage;
-    vk::MemoryPropertyFlags properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
-    vk::ImageType imageType = vk::ImageType::e2D;
-    u32 mips = 1;
-    u32 arrayLayers = 1;
-    vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1;
-    vk::ImageTiling tiling = vk::ImageTiling::eOptimal;
-    vk::SharingMode sharingMode = vk::SharingMode::eExclusive;
-    vk::ImageCreateFlags flags = {};
-};
-
-struct ImageTransitionInfo {
-    vk::Image image;
-    vk::ImageLayout oldLayout, newLayout;
-    u32 mips = 1;
-    u32 arrayLayers = 1;
 };

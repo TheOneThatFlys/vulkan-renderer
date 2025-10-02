@@ -19,7 +19,7 @@ Texture::Texture(const unsigned char *pixels, u32 width, u32 height, vk::Format 
         m_mips = static_cast<u32>(std::floor(std::log2(std::max(width, height)))) + 1;
     }
 
-    std::tie(m_image, m_imageMemory) = VulkanEngine::createImage({
+    m_image = std::make_unique<Image>(ImageCreateInfo{
         .width = width,
         .height = height,
         .format = format,
@@ -29,7 +29,8 @@ Texture::Texture(const unsigned char *pixels, u32 width, u32 height, vk::Format 
 
     // transition image layout for optimal copying
     const auto commandBuffer = VulkanEngine::beginSingleCommand();
-    VulkanEngine::transitionImageLayout(commandBuffer, {m_image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, m_mips});
+
+    m_image->changeLayout(commandBuffer, {vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, m_mips});
     // copy staging buffer data to image
     vk::BufferImageCopy copyRegion = {
         .bufferOffset = 0,
@@ -45,12 +46,11 @@ Texture::Texture(const unsigned char *pixels, u32 width, u32 height, vk::Format 
         .imageExtent = {width, height, 1}
     };
 
-    commandBuffer.copyBufferToImage(stagingBuffer, m_image, vk::ImageLayout::eTransferDstOptimal, copyRegion);
+    commandBuffer.copyBufferToImage(stagingBuffer, m_image->getImage(), vk::ImageLayout::eTransferDstOptimal, copyRegion);
     VulkanEngine::endSingleCommand(commandBuffer);
     generateMipmaps();
-    m_imageView = VulkanEngine::createImageView(*m_image, format, vk::ImageAspectFlagBits::eColor, m_mips);
 
-    vk::SamplerCreateInfo samplerCreateInfo = {
+    const vk::SamplerCreateInfo samplerCreateInfo = {
         .magFilter = samplerInfo.magFilter,
         .minFilter = samplerInfo.minFilter,
         .mipmapMode = samplerInfo.mipmapMode,
@@ -70,16 +70,8 @@ Texture::Texture(const unsigned char *pixels, u32 width, u32 height, vk::Format 
     m_sampler = vk::raii::Sampler(VulkanEngine::getDevice(), samplerCreateInfo);
 }
 
-const vk::raii::Image & Texture::getImage() const {
-    return m_image;
-}
-
-const vk::raii::DeviceMemory & Texture::getImageMemory() const {
-    return m_imageMemory;
-}
-
-const vk::raii::ImageView & Texture::getImageView() const {
-    return m_imageView;
+const Image & Texture::getImage() const {
+    return *m_image;
 }
 
 const vk::raii::Sampler & Texture::getSampler() const {
@@ -92,7 +84,7 @@ void Texture::generateMipmaps() const {
     vk::ImageMemoryBarrier barrier = {
         .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
         .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .image = m_image,
+        .image = m_image->getImage(),
         .subresourceRange = {
             .aspectMask = vk::ImageAspectFlagBits::eColor,
             .levelCount = 1,
@@ -132,7 +124,7 @@ void Texture::generateMipmaps() const {
             .dstOffsets = dstOffsets
         };
 
-        commandBuffer.blitImage(m_image, vk::ImageLayout::eTransferSrcOptimal, m_image, vk::ImageLayout::eTransferDstOptimal, blit, vk::Filter::eLinear);
+        commandBuffer.blitImage(m_image->getImage(), vk::ImageLayout::eTransferSrcOptimal, m_image->getImage(), vk::ImageLayout::eTransferDstOptimal, blit, vk::Filter::eLinear);
 
         barrier.oldLayout = vk::ImageLayout::eTransferSrcOptimal;
         barrier.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;

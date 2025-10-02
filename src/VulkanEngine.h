@@ -81,11 +81,7 @@ public:
 
 	static std::pair<vk::raii::Buffer, vk::raii::DeviceMemory> createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties);
 	static void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size);
-	static std::pair<vk::raii::Image, vk::raii::DeviceMemory> createImage(const ImageCreateInfo& info);
-	static vk::raii::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags, u32 mips = 1);
-	// This function will create a new command buffer and block until completion - probably want to use the overloaded version with commandBuffer input for a non-blocking version
-	static void transitionImageLayout(const ImageTransitionInfo &info);
-	static void transitionImageLayout(const vk::raii::CommandBuffer &commandBuffer, const ImageTransitionInfo &info);
+	static vk::raii::DeviceMemory allocateMemory(const vk::MemoryRequirements& requirements, vk::MemoryPropertyFlags properties);
 
 	static vk::raii::CommandBuffer beginSingleCommand();
 	static void endSingleCommand(const vk::raii::CommandBuffer& commandBuffer);
@@ -116,8 +112,6 @@ private:
 	QueueFamilyIndices findQueueFamilies(const vk::raii::PhysicalDevice& device) const;
 
 	vk::Extent2D chooseExtent(const vk::SurfaceCapabilitiesKHR& capabilities) const;
-
-	u32 findMemoryType(u32 typeFilter, vk::MemoryPropertyFlags properties) const;
 
 	void mainLoop();
 	void recordCommandBuffer(const vk::raii::CommandBuffer& commandBuffer, u32 imageIndex);

@@ -62,8 +62,7 @@ public:
 
 private:
     void createPipelines();
-    void createDepthBuffer();
-    void createColourBuffer();
+    void createAttachments();
 
     void beginRender(const vk::raii::CommandBuffer &commandBuffer, const vk::Image &image, const vk::ImageView &imageView) const;
     void setDynamicParameters(const vk::raii::CommandBuffer &commandBuffer) const;
@@ -78,17 +77,8 @@ private:
     std::unique_ptr<Pipeline> m_xrayPipeline = nullptr;
     std::unique_ptr<Pipeline> m_skyboxPipeline = nullptr;
 
-    vk::raii::Image m_depthBuffer = nullptr;
-    vk::raii::DeviceMemory m_depthBufferMemory = nullptr;
-    vk::raii::ImageView m_depthBufferImage = nullptr;
-
-    vk::raii::Image m_colourImage = nullptr;
-    vk::raii::DeviceMemory m_colourImageMemory = nullptr;
-    vk::raii::ImageView m_colourImageView = nullptr;
-
-    vk::raii::Image m_idImage = nullptr;
-    vk::raii::DeviceMemory m_idImageMemory = nullptr;
-    vk::raii::ImageView m_idImageView = nullptr;
+    std::unique_ptr<Image> m_colorImage;
+    std::unique_ptr<Image> m_depthImage;
 
     vk::SampleCountFlagBits m_samples = vk::SampleCountFlagBits::e4;
 

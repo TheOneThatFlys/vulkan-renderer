@@ -3,6 +3,7 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include "Common.h"
+#include "Image.h"
 
 class Skybox {
 public:
@@ -10,13 +11,10 @@ public:
 
     void addToSet(const vk::raii::DescriptorSet& set, u32 binding) const;
 
-    const vk::raii::Image& getImage() const;
-    const vk::raii::ImageView& getImageView() const;
+    const Image& getImage() const;
     const vk::raii::Sampler& getSampler() const;
 
 private:
-    vk::raii::Image m_image = nullptr;
-    vk::raii::DeviceMemory m_imageMemory = nullptr;
-    vk::raii::ImageView m_imageView = nullptr;
+    std::unique_ptr<Image> m_image;
     vk::raii::Sampler m_sampler = nullptr;
 };
