@@ -3,18 +3,12 @@
 #include <filesystem>
 #include <stack>
 
-#define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include <tiny_gltf.h>
+#include <stb_image.h>
+
+#include <fastgltf/glm_element_traits.hpp>
 
 #include "Components.h"
-
-static std::unordered_map<u32, vk::SamplerAddressMode> g_wrapModeMap = {
-    {TINYGLTF_TEXTURE_WRAP_REPEAT, vk::SamplerAddressMode::eRepeat},
-    {TINYGLTF_TEXTURE_WRAP_CLAMP_TO_EDGE, vk::SamplerAddressMode::eClampToEdge},
-    {TINYGLTF_TEXTURE_WRAP_MIRRORED_REPEAT, vk::SamplerAddressMode::eMirroredRepeat}
-};
 
 AssetManager::AssetManager() {
     stbi_set_flip_vertically_on_load(true);
@@ -83,16 +77,21 @@ AssetManager::AssetManager() {
 }
 
 // Load glb file and return the root entity
-ECS::Entity AssetManager::loadGLB(const std::string& path) {
+ECS::Entity AssetManager::loadGLB(const std::filesystem::path& path) {
     auto startTime = std::chrono::high_resolution_clock::now();
 
-    tinygltf::Model ctx;
-    std::string error, warning;
-    m_loader.LoadBinaryFromFile(&ctx, &error, &warning, path);
-    if (!error.empty())
-        Logger::error("Error loading '{}': {}", path, error);
-    if (!warning.empty())
-        Logger::warn("Warning loading '{}': {}", path, warning);
+    fastgltf::Parser parser;
+    auto data = fastgltf::GltfDataBuffer::FromPath(path);
+    if (data.error() != fastgltf::Error::None) {
+        Logger::error("Error creating buffer for '{}': {}", path.string(), fastgltf::getErrorName(data.error()));
+    }
+    auto ctx = parser.loadGltfBinary(data.get(), path.parent_path().string());
+    if (ctx.error() != fastgltf::Error::None) {
+        Logger::error("Error loading '{}': {}", path.string(), fastgltf::getErrorName(ctx.error()));
+    }
+    if (auto error = fastgltf::validate(ctx.get()); error != fastgltf::Error::None) {
+        Logger::error("Error with loaded GLB '{}': {}", path.string(), fastgltf::getErrorName(error));
+    }
 
     auto loadTime = std::chrono::high_resolution_clock::now();
 
@@ -100,131 +99,150 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
     std::vector<Texture*> textures;
     std::vector<Material*> materials;
     std::vector<Mesh<>*> meshes;
-    textures.reserve(ctx.textures.size());
-    materials.reserve(ctx.materials.size());
-    meshes.reserve(ctx.meshes.size());
+    textures.reserve(ctx->textures.size());
+    materials.reserve(ctx->materials.size());
+    meshes.reserve(ctx->meshes.size());
     // reserve space in actual arrays
     m_textures.reserve(m_textures.size() + textures.size());
     m_materials.reserve(m_materials.size() + materials.size());
     m_meshes.reserve(m_meshes.size() + meshes.size());
 
     // materials
-    if (ctx.materials.empty())
+    if (ctx->materials.empty())
         Logger::warn("Loaded file contains no materials");
-    for (const auto & material : ctx.materials) {
-        auto resolveTexture = [&](const i32 index, Texture* fallback, vk::Format format) -> Texture* {
-            if (index == -1) {
-                return fallback;
-            }
-            const tinygltf::Texture& texture = ctx.textures[index];
-            const tinygltf::Sampler& sampler = ctx.samplers[texture.sampler];
-            const tinygltf::Image& source = ctx.images[texture.source];
+    for (const auto & material : ctx->materials) {
+        auto resolveTexture = [&](const size_t index, vk::Format format) -> Texture* {
+            const fastgltf::Texture& texture = ctx->textures[index];
+            const fastgltf::Sampler& sampler = ctx->samplers[texture.samplerIndex.value()];
+            const fastgltf::Image& source = ctx->images[texture.imageIndex.value()];
+
+            auto resolveWrap = [&](const std::optional<fastgltf::Wrap> wrap) -> vk::SamplerAddressMode {
+                if (!wrap.has_value()) return vk::SamplerAddressMode::eRepeat;
+                switch (wrap.value()) {
+                    case fastgltf::Wrap::ClampToEdge: return vk::SamplerAddressMode::eClampToEdge;
+                    case fastgltf::Wrap::Repeat: return vk::SamplerAddressMode::eRepeat;
+                    case fastgltf::Wrap::MirroredRepeat: return vk::SamplerAddressMode::eMirroredRepeat;
+                    default: return vk::SamplerAddressMode::eRepeat;
+                }
+            };
 
             SamplerInfo samplerInfo;
-            samplerInfo.wrapU = g_wrapModeMap.at(sampler.wrapS);
-            samplerInfo.wrapV = g_wrapModeMap.at(sampler.wrapT);
+            samplerInfo.wrapU = resolveWrap(sampler.wrapS);
+            samplerInfo.wrapV = resolveWrap(sampler.wrapT);
 
-            auto resolveFilter = [&](const i32 filterType) -> vk::Filter {
-                if (filterType == -1) return vk::Filter::eNearest;
-                if (filterType == TINYGLTF_TEXTURE_FILTER_LINEAR || filterType == TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST || filterType == TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR) {
+            auto resolveFilter = [&](const std::optional<fastgltf::Filter> filter) -> vk::Filter {
+                if (!filter.has_value()) return vk::Filter::eNearest;
+                if (filter == fastgltf::Filter::Linear || filter == fastgltf::Filter::LinearMipMapNearest || filter == fastgltf::Filter::LinearMipMapLinear) {
                     return vk::Filter::eLinear;
                 }
-                if (filterType == TINYGLTF_TEXTURE_FILTER_NEAREST || filterType == TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST || filterType == TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR) {
+                if (filter == fastgltf::Filter::Nearest || filter == fastgltf::Filter::NearestMipMapLinear || filter == fastgltf::Filter::NearestMipMapNearest) {
                     return vk::Filter::eNearest;
                 }
-                Logger::warn("Unrecognised filter type: {}", filterType);
+                Logger::warn("Unrecognised filter type");
                 return vk::Filter::eNearest;
             };
             samplerInfo.minFilter = resolveFilter(sampler.minFilter);
             samplerInfo.magFilter = resolveFilter(sampler.magFilter);
 
-            if (sampler.minFilter == TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR || sampler.minFilter == TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR) {
+            if (sampler.minFilter == fastgltf::Filter::NearestMipMapLinear || sampler.minFilter == fastgltf::Filter::LinearMipMapLinear) {
                 samplerInfo.useMipmaps = true;
                 samplerInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
             }
-            else if (sampler.minFilter == TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST || sampler.minFilter == TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST) {
+            else if (sampler.minFilter == fastgltf::Filter::NearestMipMapNearest || sampler.minFilter == fastgltf::Filter::LinearMipMapNearest) {
                 samplerInfo.useMipmaps = true;
                 samplerInfo.mipmapMode = vk::SamplerMipmapMode::eNearest;
             }
 
-            m_textures.push_back(std::make_unique<Texture>(source.image.data(), source.width, source.height, format, samplerInfo));
+            if (!std::holds_alternative<fastgltf::sources::BufferView>(source.data))
+                Logger::error("Unsupported image storage mode. Images must be embedded in a .glb file.");
+
+            auto& view = std::get<fastgltf::sources::BufferView>(source.data);
+            auto& bufferView = ctx->bufferViews[view.bufferViewIndex];
+            auto& buffer = ctx->buffers[bufferView.bufferIndex];
+
+            if (!std::holds_alternative<fastgltf::sources::Array>(buffer.data))
+                Logger::error("Buffer load corrupt. Was LoadExternalBuffers specified?");
+            auto& vector = std::get<fastgltf::sources::Array>(buffer.data).bytes;
+
+            i32 loadedWidth, loadedHeight, loadedChannels;
+            const u8* imageBytes = stbi_load_from_memory(reinterpret_cast<u8 * const>(vector.data()) + bufferView.byteOffset, static_cast<i32>(bufferView.byteLength), &loadedWidth, &loadedHeight, &loadedChannels, 4);
+            if (imageBytes == nullptr)
+                Logger::error("Error loading texture: {}", stbi_failure_reason());
+            m_textures.push_back(std::make_unique<Texture>(imageBytes, loadedWidth, loadedHeight, format, samplerInfo));
             return m_textures.back().get();
         };
 
-        Texture *baseTexture = resolveTexture(material.pbrMetallicRoughness.baseColorTexture.index, m_pureWhite1x1Texture, vk::Format::eR8G8B8A8Srgb);
-        Texture *metallicRoughnessTexture = resolveTexture(material.pbrMetallicRoughness.metallicRoughnessTexture.index, m_pureWhite1x1Texture, vk::Format::eR8G8B8A8Unorm);
-        Texture *aoTexture = resolveTexture(material.occlusionTexture.index, m_pureWhite1x1Texture, vk::Format::eR8G8B8A8Unorm);
-        Texture *normalTexture = resolveTexture(material.normalTexture.index, m_normal1x1Texture, vk::Format::eR8G8B8A8Unorm);
+        Texture *baseTexture = material.pbrData.baseColorTexture.has_value() ? resolveTexture(material.pbrData.baseColorTexture.value().textureIndex, vk::Format::eR8G8B8A8Srgb) : m_pureWhite1x1Texture;
+        Texture *metallicRoughnessTexture = material.pbrData.metallicRoughnessTexture.has_value() ? resolveTexture(material.pbrData.metallicRoughnessTexture.value().textureIndex, vk::Format::eR8G8B8A8Unorm) : m_pureWhite1x1Texture;
+        Texture *aoTexture = material.occlusionTexture.has_value() ? resolveTexture(material.occlusionTexture.value().textureIndex, vk::Format::eR8G8B8A8Unorm) : m_pureWhite1x1Texture;
+        Texture *normalTexture = material.normalTexture.has_value() ? resolveTexture(material.normalTexture.value().textureIndex, vk::Format::eR8G8B8A8Unorm) : m_normal1x1Texture;
         m_materials.push_back(std::make_unique<Material>(baseTexture, metallicRoughnessTexture, aoTexture, normalTexture));
         materials.emplace_back(m_materials.back().get());
     }
     // meshes
-    if (ctx.meshes.empty())
+    if (ctx->meshes.empty())
         Logger::warn("Loaded file contains no meshes");
-    for (const auto & mesh : ctx.meshes) {
-        m_meshes.push_back(loadMesh(ctx, mesh));
+    for (const auto & mesh : ctx->meshes) {
+        m_meshes.push_back(loadMesh(ctx.get(), mesh));
         meshes.emplace_back(m_meshes.back().get());
     }
 
     // nodes
-    if (ctx.scenes.size() > 1)
-        Logger::warn("Loaded file contains more than one scene, only first one was loaded ({} total)", ctx.scenes.size());
-    const tinygltf::Scene& scene = ctx.scenes.at(0);
-    if (scene.nodes.empty())
+    if (ctx->scenes.size() > 1)
+        Logger::warn("Loaded file contains more than one scene, only first one was loaded ({} total)", ctx->scenes.size());
+    const fastgltf::Scene& scene = ctx->scenes.at(0);
+    if (scene.nodeIndices.empty())
         Logger::warn("Loaded scene contained no nodes");
 
     ECS::Entity root;
-    if (scene.nodes.size() == 1) {
+    if (scene.nodeIndices.size() == 1) {
         root = -1;
     }
     else {
         root = ECS::createEntity();
         HierarchyComponent::addEmpty(root);
-        ECS::addComponent<NamedComponent>(root, {path});
+        ECS::addComponent<NamedComponent>(root, {path.string()});
         ECS::addComponent<Transform>(root, {});
     }
-    std::stack<std::tuple<i32, ECS::Entity>> nodesToVisit;
-    for (i32 nodeID : scene.nodes) {
+    std::stack<std::tuple<size_t, ECS::Entity>> nodesToVisit;
+    for (size_t nodeID : scene.nodeIndices) {
         nodesToVisit.emplace(nodeID, root);
     }
 
     while (!nodesToVisit.empty()) {
         auto [nodeID, parent] = nodesToVisit.top();
         nodesToVisit.pop();
-        const tinygltf::Node& node = ctx.nodes[nodeID];
+        const fastgltf::Node& node = ctx->nodes[nodeID];
 
         // create entity
         ECS::Entity entity = ECS::createEntity();
         if (root == -1) root = entity;
 
         // add model if it exists
-        if (node.mesh != -1) {
-            ECS::addComponent<Model3D>(entity, {meshes[node.mesh], materials[ctx.meshes[node.mesh].primitives[0].material]});
+        if (node.meshIndex.has_value()) {
+            ECS::addComponent<Model3D>(entity, {meshes[node.meshIndex.value()], materials[ctx->meshes[node.meshIndex.value()].primitives[0].materialIndex.value()]});
         }
 
         Transform transform;
         // transform components are already specified
-        if (!node.translation.empty()) {
-            transform.position = glm::vec3(static_cast<float>(node.translation[0]), static_cast<float>(node.translation[1]), static_cast<float>(node.translation[2]));
-        }
-        if (!node.rotation.empty()) {
-            transform.rotation = glm::quat(static_cast<float>(node.rotation[3]), static_cast<float>(node.rotation[0]), static_cast<float>(node.rotation[1]), static_cast<float>(node.rotation[2]));
-        }
-        if (!node.scale.empty()) {
-            transform.scale = glm::vec3(static_cast<float>(node.scale[0]), static_cast<float>(node.scale[1]), static_cast<float>(node.scale[2]));
+        if (std::holds_alternative<fastgltf::TRS>(node.transform)) {
+            const auto& [translation, rotation, scale] = std::get<fastgltf::TRS>(node.transform);
+            transform.position = glm::vec3(translation.x(), translation.y(), translation.z());
+            transform.rotation = glm::quat(rotation.w(), rotation.x(), rotation.y(), rotation.z());
+            transform.scale = glm::vec3(scale.x(), scale.y(), scale.z());
         }
         // transform components given as a matrix
-        if (!node.matrix.empty()) {
+        else {
             Logger::warn("Matrix transform specifiers are not supported yet");
         }
 
         ECS::addComponent<Transform>(entity, transform);
         ECS::addComponent<HierarchyComponent>(entity, {parent, {}});
-        ECS::addComponent<NamedComponent>(entity, {node.name});
+        ECS::addComponent<NamedComponent>(entity, {std::string(node.name)});
         if (parent != -1) {
             ECS::getComponent<HierarchyComponent>(parent).children.push_back(entity);
         }
-        for (i32 child : node.children) {
+        for (size_t child : node.children) {
             nodesToVisit.emplace(child, entity);
         }
     }
@@ -233,7 +251,7 @@ ECS::Entity AssetManager::loadGLB(const std::string& path) {
 
     auto endTime = std::chrono::high_resolution_clock::now();
 
-    Logger::info("Loaded '{}' in {} ms [read = {} ms]", path, std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime).count(), std::chrono::duration_cast<std::chrono::milliseconds>(loadTime-startTime).count());
+    Logger::info("Loaded '{}' in {} ms [read = {} ms]", path.string(), std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime).count(), std::chrono::duration_cast<std::chrono::milliseconds>(loadTime-startTime).count());
 
     return root;
 }
@@ -258,76 +276,46 @@ Mesh<> * AssetManager::getUnitCube() const {
     return m_unitCubeMesh;
 }
 
-std::unique_ptr<Mesh<>> AssetManager::loadMesh(const tinygltf::Model& ctx, const tinygltf::Mesh &mesh) {
+std::unique_ptr<Mesh<>> AssetManager::loadMesh(const fastgltf::Asset& ctx, const fastgltf::Mesh &mesh) {
     if (mesh.primitives.size() > 1) {
         Logger::warn(std::format("Mesh loader does not currently support more than one 1 primitive per mesh, only the first was loaded ({} total)", mesh.primitives.size()));
     }
-    const tinygltf::Primitive& primitive = mesh.primitives.at(0);
+    const fastgltf::Primitive& primitive = mesh.primitives.at(0);
 
-    const auto loadBuffer = [&](u32 accessorIndex, u32 componentType, u32 type) -> const unsigned char* {
-        const tinygltf::Accessor& accessor = ctx.accessors[accessorIndex];
-        const tinygltf::BufferView& bufferView = ctx.bufferViews[accessor.bufferView];
-        const tinygltf::Buffer& buffer = ctx.buffers[bufferView.buffer];
-        validateAccessor(accessor, componentType, type);
-        return &buffer.data[accessor.byteOffset + bufferView.byteOffset];
+    const auto getAccessor = [&](const char* name) -> const fastgltf::Accessor& {
+        auto* iterator = primitive.findAttribute(name);
+        if (iterator == primitive.attributes.cend()) Logger::error("{} does not contain {} attribute", mesh.name, name);
+        return ctx.accessors[iterator->accessorIndex];
     };
 
-    bool hasUVs = primitive.attributes.contains("TEXCOORD_0");
-    if (!hasUVs) Logger::warn("{} does not contain TEXCOORD_0 attribute", mesh.name);
-
     // load vertex info
-    if (!primitive.attributes.contains("POSITION")) Logger::error("{} does not contain POSITION attribute", mesh.name);
-    if (!primitive.attributes.contains("NORMAL")) Logger::error("{} does not contain NORMAL attribute", mesh.name);
-    if (!primitive.attributes.contains("TANGENT")) Logger::error("{} does not contain TANGENT attribute", mesh.name);
-
-    const unsigned char* positions = loadBuffer(primitive.attributes.at("POSITION"), TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC3);
-    const unsigned char* uvs = hasUVs ? loadBuffer(primitive.attributes.at("TEXCOORD_0"), TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC2) : nullptr;
-    const unsigned char* normals = loadBuffer(primitive.attributes.at("NORMAL"), TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC3);
-    const unsigned char* tangents = loadBuffer(primitive.attributes.at("TANGENT"), TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC4);
-
-    constexpr float nullUVs[] = {0.0f, 0.0f};
+    const fastgltf::Accessor& positionAccessor = getAccessor("POSITION");
+    const fastgltf::Accessor& uvAccessor = getAccessor("TEXCOORD_0");
+    const fastgltf::Accessor& normalAccessor = getAccessor("NORMAL");
+    const fastgltf::Accessor& tangentAccessor = getAccessor("TANGENT");
     std::vector<Vertex> vertices;
-    const u64 numberOfVertices = ctx.accessors[primitive.attributes.at("POSITION")].count;
-    vertices.reserve(numberOfVertices);
-    for (u64 i = 0; i < numberOfVertices; ++i) {
-        const auto pos = reinterpret_cast<const float*>(&positions[i * 12]);
-        const auto uv = hasUVs ? reinterpret_cast<const float*>(&uvs[i * 8]) : nullUVs;
-        const auto normal = reinterpret_cast<const float*>(&normals[i * 12]);
-        const auto tangent = reinterpret_cast<const float*>(&tangents[i * 16]);
-        vertices.emplace_back(
-            glm::vec3(pos[0], pos[1], pos[2]), // position
-            glm::vec2(uv[0], uv[1]), // uv
-            glm::vec3(normal[0], normal[1], normal[2]), // normal
-            glm::vec3(tangent[0], tangent[1], tangent[2]) // tangent
-        );
-    }
+    vertices.reserve(positionAccessor.count);
+    fastgltf::iterateAccessor<glm::vec3>(ctx, positionAccessor, [&](const glm::vec3& position) {
+        vertices.emplace_back(position, glm::vec2(0.0f), glm::vec3(0.0f), glm::vec3(0.0f));
+    });
+    fastgltf::iterateAccessorWithIndex<glm::vec2>(ctx, uvAccessor, [&](const glm::vec2& uv, const size_t index) {
+        vertices.at(index).uv = uv;
+    });
+    fastgltf::iterateAccessorWithIndex<glm::vec3>(ctx, normalAccessor, [&](const glm::vec3& normal, const size_t index) {
+        vertices.at(index).normal = normal;
+    });
+    fastgltf::iterateAccessorWithIndex<glm::vec4>(ctx, tangentAccessor, [&](const glm::vec4& tangent, const size_t index) {
+        vertices.at(index).tangent = glm::vec3(tangent);
+    });
 
     // load indexes
-    const tinygltf::Accessor& indexAccessor = ctx.accessors[primitive.indices];
-    const tinygltf::BufferView& indexBufferView = ctx.bufferViews[indexAccessor.bufferView];
-    const tinygltf::Buffer& indexBuffer = ctx.buffers[indexBufferView.buffer];
-
-    const size_t indexStart = indexAccessor.byteOffset + indexBufferView.byteOffset;
+    const fastgltf::Accessor& indexAccessor = ctx.accessors[primitive.indicesAccessor.value()];
     std::vector<u32> indexes;
     indexes.reserve(indexAccessor.count);
-    switch (indexAccessor.componentType) {
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
-            for (u32 i = 0; i < indexAccessor.count; ++i) {
-                const auto index = *reinterpret_cast<const u32*>(&indexBuffer.data[indexStart + i * 4]);
-                indexes.emplace_back(index);
-            }
-            break;
+    fastgltf::iterateAccessor<u32>(ctx, indexAccessor, [&](const u32 index) {
+        indexes.push_back(index);
+    });
 
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-            for (u32 i = 0; i < indexAccessor.count; ++i) {
-                const auto index = static_cast<u32>(*reinterpret_cast<const u16*>(&indexBuffer.data[indexStart + i * 2]));
-                indexes.emplace_back(index);
-            }
-            break;
-
-        default:
-            Logger::error(std::format("Unknown index type: {}", indexAccessor.componentType));
-    }
     return std::make_unique<Mesh<>>(vertices, indexes);
 }
 
@@ -337,9 +325,4 @@ void AssetManager::loadImage(std::string path) {
     if (pixels == nullptr) throw std::runtime_error(std::format("Unable to load image at {} ({})", path, stbi_failure_reason()));
     m_textures.emplace_back(std::make_unique<Texture>(pixels, static_cast<u32>(width), static_cast<u32>(height)));
     stbi_image_free(pixels);
-}
-
-void AssetManager::validateAccessor(const tinygltf::Accessor &accessor, u32 componentType, u32 type) {
-    if (accessor.componentType != componentType || accessor.type != type)
-        Logger::error("Unexpected accessor format ({}, {}), expected ({}, {})", accessor.componentType, accessor.type, componentType, type);
 }

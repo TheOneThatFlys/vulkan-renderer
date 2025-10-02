@@ -1,17 +1,14 @@
 {
-  "dependencies": [
+  "dependencies" : [
     "glfw3",
     "glm",
-    {
-      "name": "imgui",
-      "features": [
-        "glfw-binding",
-        "vulkan-binding"
-      ]
-    },
     "stb",
-    "tinygltf"
+    "fastgltf",
+    {
+      "name" : "imgui",
+      "features" : [ "glfw-binding", "vulkan-binding" ]
+    }
   ],
-  "version": "1.0.0",
-  "name": "vulkan-engine"
+  "version" : "1.0.0",
+  "name" : "vulkan-engine"
 }

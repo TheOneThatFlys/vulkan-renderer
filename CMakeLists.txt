@@ -7,6 +7,7 @@ find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(Stb REQUIRED)
+find_package(fastgltf CONFIG REQUIRED)
 
 add_executable (VulkanRenderer
         src/VulkanEngine.cpp
@@ -59,13 +60,14 @@ target_compile_definitions(VulkanRenderer PUBLIC
         VULKAN_HPP_NO_TO_STRING=1
 )
 
-target_link_libraries(VulkanRenderer PRIVATE glfw)
-target_link_libraries(VulkanRenderer PRIVATE glm::glm)
-target_link_libraries(VulkanRenderer PRIVATE imgui::imgui)
-target_link_libraries(VulkanRenderer PRIVATE Vulkan::Vulkan)
+target_link_libraries(VulkanRenderer PRIVATE
+        Vulkan::Vulkan
+        glfw
+        glm::glm
+        imgui::imgui
+        fastgltf::fastgltf
+)
 
-find_path(TINYGLTF_INCLUDE_DIRS "tiny_gltf.h")
-target_include_directories(VulkanRenderer PRIVATE ${TINYGLTF_INCLUDE_DIRS})
 target_include_directories(VulkanRenderer PRIVATE ${Stb_INCLUDE_DIR})
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)

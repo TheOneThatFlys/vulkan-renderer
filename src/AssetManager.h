@@ -1,6 +1,7 @@
 #pragma once
 
-#include <tiny_gltf.h>
+#include <fastgltf/core.hpp>
+#include <fastgltf/types.hpp>
 
 #include "Common.h"
 #include "ECS.h"
@@ -12,17 +13,13 @@
 class AssetManager {
 public:
     AssetManager();
-    ECS::Entity loadGLB(const std::string& path);
+    ECS::Entity loadGLB(const std::filesystem::path& path);
     std::unique_ptr<Skybox> loadSkybox(const std::string& folderPath, const char* ext = "png");
 
     Mesh<>* getUnitCube() const;
 private:
-    std::unique_ptr<Mesh<>> loadMesh(const tinygltf::Model &ctx, const tinygltf::Mesh &mesh);
+    std::unique_ptr<Mesh<>> loadMesh(const fastgltf::Asset &ctx, const fastgltf::Mesh &mesh);
     void loadImage(std::string path);
-
-    static void validateAccessor(const tinygltf::Accessor& accessor, u32 componentType, u32 type);
-
-    tinygltf::TinyGLTF m_loader;
 
     std::vector<std::unique_ptr<Mesh<>>> m_meshes;
     std::vector<std::unique_ptr<Material>> m_materials;
