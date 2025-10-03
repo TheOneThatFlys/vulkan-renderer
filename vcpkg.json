@@ -4,6 +4,7 @@
     "glm",
     "stb",
     "fastgltf",
+    "ktx",
     {
       "name" : "imgui",
       "features" : [ "glfw-binding", "vulkan-binding" ]

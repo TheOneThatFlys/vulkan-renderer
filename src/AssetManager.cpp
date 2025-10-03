@@ -5,7 +5,7 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-
+#include <ktx.h>
 #include <fastgltf/glm_element_traits.hpp>
 
 #include "Components.h"
@@ -80,7 +80,7 @@ AssetManager::AssetManager() {
 ECS::Entity AssetManager::loadGLB(const std::filesystem::path& path) {
     auto startTime = std::chrono::high_resolution_clock::now();
 
-    fastgltf::Parser parser;
+    fastgltf::Parser parser(fastgltf::Extensions::KHR_texture_basisu | fastgltf::Extensions::KHR_mesh_quantization);
     auto data = fastgltf::GltfDataBuffer::FromPath(path);
     if (data.error() != fastgltf::Error::None) {
         Logger::error("Error creating buffer for '{}': {}", path.string(), fastgltf::getErrorName(data.error()));
@@ -114,7 +114,15 @@ ECS::Entity AssetManager::loadGLB(const std::filesystem::path& path) {
         auto resolveTexture = [&](const size_t index, vk::Format format) -> Texture* {
             const fastgltf::Texture& texture = ctx->textures[index];
             const fastgltf::Sampler& sampler = ctx->samplers[texture.samplerIndex.value()];
-            const fastgltf::Image& source = ctx->images[texture.imageIndex.value()];
+            size_t imageIndex;
+            bool usingKtx = texture.basisuImageIndex.has_value();
+            if (usingKtx) {
+                imageIndex = texture.basisuImageIndex.value();
+            }
+            else {
+                imageIndex = texture.imageIndex.value();
+            }
+            const fastgltf::Image& source = ctx->images[imageIndex];
 
             auto resolveWrap = [&](const std::optional<fastgltf::Wrap> wrap) -> vk::SamplerAddressMode {
                 if (!wrap.has_value()) return vk::SamplerAddressMode::eRepeat;
@@ -164,11 +172,24 @@ ECS::Entity AssetManager::loadGLB(const std::filesystem::path& path) {
                 Logger::error("Buffer load corrupt. Was LoadExternalBuffers specified?");
             auto& vector = std::get<fastgltf::sources::Array>(buffer.data).bytes;
 
-            i32 loadedWidth, loadedHeight, loadedChannels;
-            const u8* imageBytes = stbi_load_from_memory(reinterpret_cast<u8 * const>(vector.data()) + bufferView.byteOffset, static_cast<i32>(bufferView.byteLength), &loadedWidth, &loadedHeight, &loadedChannels, 4);
-            if (imageBytes == nullptr)
-                Logger::error("Error loading texture: {}", stbi_failure_reason());
-            m_textures.push_back(std::make_unique<Texture>(imageBytes, loadedWidth, loadedHeight, format, samplerInfo));
+            if (usingKtx) {
+                ktxTexture* kTexture;
+                ktx_error_code_e result = ktxTexture_CreateFromMemory(reinterpret_cast<const u8 *>(vector.data() + bufferView.byteOffset), bufferView.byteLength, KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &kTexture);
+                if (result != KTX_SUCCESS) Logger::error("Error loading KTX texture");
+                if (ktxTexture_NeedsTranscoding(kTexture)) {
+                    ktx_error_code_e transcodeResult = ktxTexture2_TranscodeBasis(reinterpret_cast<ktxTexture2*>(kTexture), KTX_TTF_RGBA32, 0);
+                    if (transcodeResult != KTX_SUCCESS) Logger::error("Error transcoding KTX texture");
+                }
+                m_textures.push_back(std::make_unique<Texture>(kTexture->pData, kTexture->baseWidth, kTexture->baseHeight, format, samplerInfo));
+                ktxTexture_Destroy(kTexture);
+            }
+            else {
+                i32 width, height, channels;
+                u8* imageBytes = stbi_load_from_memory(reinterpret_cast<u8 * const>(vector.data()) + bufferView.byteOffset, static_cast<i32>(bufferView.byteLength), &width, &height, &channels, 4);
+                if (imageBytes == nullptr) Logger::error("Error loading texture: {}", stbi_failure_reason());
+                m_textures.push_back(std::make_unique<Texture>(imageBytes, width, height, format, samplerInfo));
+                stbi_image_free(imageBytes);
+            }
             return m_textures.back().get();
         };
 
@@ -179,6 +200,7 @@ ECS::Entity AssetManager::loadGLB(const std::filesystem::path& path) {
         m_materials.push_back(std::make_unique<Material>(baseTexture, metallicRoughnessTexture, aoTexture, normalTexture));
         materials.emplace_back(m_materials.back().get());
     }
+    Logger::info("test");
     // meshes
     if (ctx->meshes.empty())
         Logger::warn("Loaded file contains no meshes");
@@ -252,7 +274,6 @@ ECS::Entity AssetManager::loadGLB(const std::filesystem::path& path) {
     auto endTime = std::chrono::high_resolution_clock::now();
 
     Logger::info("Loaded '{}' in {} ms [read = {} ms]", path.string(), std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime).count(), std::chrono::duration_cast<std::chrono::milliseconds>(loadTime-startTime).count());
-
     return root;
 }
 

@@ -8,6 +8,7 @@ find_package(imgui CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(Stb REQUIRED)
 find_package(fastgltf CONFIG REQUIRED)
+find_package(Ktx CONFIG REQUIRED)
 
 add_executable (VulkanRenderer
         src/VulkanEngine.cpp
@@ -66,6 +67,7 @@ target_link_libraries(VulkanRenderer PRIVATE
         glm::glm
         imgui::imgui
         fastgltf::fastgltf
+        KTX::ktx
 )
 
 target_include_directories(VulkanRenderer PRIVATE ${Stb_INCLUDE_DIR})
